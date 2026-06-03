@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Shule MVP1</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">S</div>
+        <div>
+          <strong>Shule</strong>
+          <span>Results Manager</span>
+        </div>
+      </div>
+      <nav>
+        <button class="nav-button active" data-view="dashboard">Dashboard</button>
+        <button class="nav-button" data-view="setup">Setup</button>
+        <button class="nav-button" data-view="marks">Marks Entry</button>
+        <button class="nav-button" data-view="reports">Reports</button>
+      </nav>
+    </aside>
+
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <h1 id="pageTitle">Dashboard</h1>
+          <p id="schoolMeta">Loading school profile...</p>
+        </div>
+        <div class="actions">
+          <button id="refreshBtn" class="secondary">Refresh</button>
+          <button id="printBtn">Print Reports</button>
+        </div>
+      </header>
+
+      <section id="dashboard" class="view active">
+        <div class="metric-grid">
+          <article class="metric">
+            <span>Students</span>
+            <strong id="metricStudents">0</strong>
+          </article>
+          <article class="metric">
+            <span>Subjects</span>
+            <strong id="metricSubjects">0</strong>
+          </article>
+          <article class="metric">
+            <span>Marks Captured</span>
+            <strong id="metricMarks">0</strong>
+          </article>
+          <article class="metric">
+            <span>Class Average</span>
+            <strong id="metricAverage">0</strong>
+          </article>
+        </div>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Class Ranking</h2>
+            <span>Automatically calculated</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Pos</th>
+                  <th>Student</th>
+                  <th>Adm No.</th>
+                  <th>Total</th>
+                  <th>Average</th>
+                  <th>Grade</th>
+                  <th>Missing</th>
+                </tr>
+              </thead>
+              <tbody id="rankingBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Subject Statistics</h2>
+            <span>Average, highest, lowest</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Subject</th>
+                  <th>Entries</th>
+                  <th>Average</th>
+                  <th>Highest</th>
+                  <th>Lowest</th>
+                </tr>
+              </thead>
+              <tbody id="subjectStatsBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section id="setup" class="view">
+        <section class="panel two-col">
+          <form id="schoolForm">
+            <div class="panel-heading">
+              <h2>School Profile</h2>
+              <span>Used on reports</span>
+            </div>
+            <label>School name <input name="name" required></label>
+            <label>Academic year <input name="academicYear" required></label>
+            <label>Term <input name="term" required></label>
+            <label>Exam <input name="exam" required></label>
+            <button type="submit">Save Profile</button>
+          </form>
+
+          <form id="studentForm">
+            <div class="panel-heading">
+              <h2>Add Student</h2>
+              <span>Quick register entry</span>
+            </div>
+            <label>Admission number <input name="admissionNo" required></label>
+            <label>Full name <input name="name" required></label>
+            <label>Gender
+              <select name="gender">
+                <option value="">Not set</option>
+                <option>F</option>
+                <option>M</option>
+              </select>
+            </label>
+            <button type="submit">Add Student</button>
+          </form>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Current Students</h2>
+            <span>Master register</span>
+          </div>
+          <div id="studentList" class="chip-list"></div>
+        </section>
+      </section>
+
+      <section id="marks" class="view">
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Teacher Marks Entry</h2>
+            <span>Save subject scores instantly</span>
+          </div>
+          <div class="marks-toolbar">
+            <label>Subject <select id="subjectSelect"></select></label>
+            <label>CSV upload <input id="csvInput" type="file" accept=".csv,text/csv"></label>
+            <button id="downloadTemplateBtn" class="secondary">Download CSV Template</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Adm No.</th>
+                  <th>Student</th>
+                  <th>Score</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="marksBody"></tbody>
+            </table>
+          </div>
+          <button id="saveMarksBtn">Save Marks</button>
+        </section>
+      </section>
+
+      <section id="reports" class="view">
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Student Report Cards</h2>
+            <span>Preview and print</span>
+          </div>
+          <div id="reportCards" class="report-grid"></div>
+        </section>
+      </section>
+    </main>
+
+    <div id="toast" role="status"></div>
+    <script src="/app.js"></script>
+  </body>
+</html>
