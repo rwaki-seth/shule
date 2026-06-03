@@ -72,6 +72,12 @@ Recommended MVP1 cloud path:
 
 For MVP1, Render is a better fit than Vercel because the app currently runs a small Node server and writes a local database file. Vercel becomes a better fit after MVP2 moves storage to Supabase/PostgreSQL.
 
+## Vercel Deployment
+
+This repository also includes Vercel API functions under `api/`.
+
+Vercel is suitable for an online demo of MVP1. Data writes use the serverless runtime filesystem and should not be treated as permanent production storage. For real schools on Vercel, connect the app to Supabase/PostgreSQL in MVP2.
+
 ## Data Storage
 
 MVP1 stores data in:
