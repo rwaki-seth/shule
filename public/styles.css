@@ -130,7 +130,8 @@ h2 {
 }
 
 .actions,
-.marks-toolbar {
+.marks-toolbar,
+.report-toolbar {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
@@ -269,11 +270,19 @@ th {
   gap: 18px;
 }
 
+.report-grid.single-report {
+  grid-template-columns: minmax(320px, 720px);
+}
+
 .report-card {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 18px;
   background: #fff;
+}
+
+.report-card table {
+  min-width: 0;
 }
 
 .report-head {
@@ -357,8 +366,15 @@ th {
   #dashboard,
   #setup,
   #marks,
+  .panel-heading,
+  .report-toolbar,
   #toast {
     display: none !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
   }
 
   body {
@@ -377,10 +393,34 @@ th {
   .panel {
     border: 0;
     box-shadow: none;
+    padding: 0;
+  }
+
+  .report-grid,
+  .report-grid.single-report {
+    display: block;
+  }
+
+  .report-card table {
+    width: 100%;
+    min-width: 0;
   }
 
   .report-card {
+    border: 0;
+    border-radius: 0;
     break-inside: avoid;
-    margin-bottom: 20px;
+    box-shadow: none;
+    min-height: calc(100vh - 24mm);
+    padding: 0;
+    page-break-after: always;
+  }
+
+  .report-card:last-child {
+    page-break-after: auto;
+  }
+
+  body.print-student .report-card {
+    page-break-after: auto;
   }
 }

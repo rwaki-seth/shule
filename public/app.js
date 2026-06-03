@@ -1,5 +1,7 @@
 let db = null;
 let results = null;
+let selectedReportStudentId = null;
+let reportMode = "student";
 
 const els = {
   pageTitle: document.getElementById("pageTitle"),
@@ -18,6 +20,11 @@ const els = {
   saveMarksBtn: document.getElementById("saveMarksBtn"),
   csvInput: document.getElementById("csvInput"),
   downloadTemplateBtn: document.getElementById("downloadTemplateBtn"),
+  reportModeLabel: document.getElementById("reportModeLabel"),
+  reportStudentSelect: document.getElementById("reportStudentSelect"),
+  viewStudentReportBtn: document.getElementById("viewStudentReportBtn"),
+  printStudentReportBtn: document.getElementById("printStudentReportBtn"),
+  printClassReportsBtn: document.getElementById("printClassReportsBtn"),
   reportCards: document.getElementById("reportCards"),
   toast: document.getElementById("toast")
 };
@@ -44,6 +51,7 @@ function renderAll() {
   renderSetup();
   renderSubjectSelect();
   renderMarksEntry();
+  renderReportSelect();
   renderReports();
 }
 
@@ -119,8 +127,25 @@ function renderMarksEntry() {
   }).join("");
 }
 
+function renderReportSelect() {
+  if (!selectedReportStudentId && results.students.length) {
+    selectedReportStudentId = results.students[0].id;
+  }
+  els.reportStudentSelect.innerHTML = results.students.map((student) => `
+    <option value="${student.id}">${student.position}. ${escapeHtml(student.name)} (${escapeHtml(student.admissionNo)})</option>
+  `).join("");
+  if (selectedReportStudentId) els.reportStudentSelect.value = selectedReportStudentId;
+}
+
 function renderReports() {
-  els.reportCards.innerHTML = results.students.map((student) => `
+  const students = reportMode === "class"
+    ? results.students
+    : results.students.filter((student) => student.id === selectedReportStudentId);
+  els.reportModeLabel.textContent = reportMode === "class"
+    ? "Class reports: one student per printed page"
+    : "Individual report preview";
+  els.reportCards.classList.toggle("single-report", reportMode !== "class");
+  els.reportCards.innerHTML = students.map((student) => `
     <article class="report-card">
       <div class="report-head">
         <h2>${escapeHtml(results.school.name)}</h2>
@@ -150,6 +175,31 @@ function renderReports() {
       </table>
     </article>
   `).join("");
+}
+
+function showReportsView() {
+  document.querySelector('[data-view="reports"]').click();
+}
+
+function viewStudentReport() {
+  selectedReportStudentId = els.reportStudentSelect.value;
+  reportMode = "student";
+  renderReports();
+}
+
+function printStudentReport() {
+  viewStudentReport();
+  document.body.classList.remove("print-class");
+  document.body.classList.add("print-student");
+  window.print();
+}
+
+function printClassReports() {
+  reportMode = "class";
+  renderReports();
+  document.body.classList.remove("print-student");
+  document.body.classList.add("print-class");
+  window.print();
 }
 
 async function saveMarks() {
@@ -281,6 +331,18 @@ els.csvInput.addEventListener("change", (event) => {
   if (file) importCsv(file).catch((error) => toast(error.message));
 });
 document.getElementById("refreshBtn").addEventListener("click", loadData);
-document.getElementById("printBtn").addEventListener("click", () => window.print());
+document.getElementById("printBtn").addEventListener("click", () => {
+  showReportsView();
+  printClassReports();
+});
+els.reportStudentSelect.addEventListener("change", viewStudentReport);
+els.viewStudentReportBtn.addEventListener("click", viewStudentReport);
+els.printStudentReportBtn.addEventListener("click", printStudentReport);
+els.printClassReportsBtn.addEventListener("click", printClassReports);
+window.addEventListener("afterprint", () => {
+  document.body.classList.remove("print-class", "print-student");
+  reportMode = "student";
+  renderReports();
+});
 
 loadData().catch((error) => toast(error.message));

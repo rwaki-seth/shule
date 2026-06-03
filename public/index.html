@@ -173,7 +173,13 @@
         <section class="panel">
           <div class="panel-heading">
             <h2>Student Report Cards</h2>
-            <span>Preview and print</span>
+            <span id="reportModeLabel">Individual report preview</span>
+          </div>
+          <div class="report-toolbar">
+            <label>Student <select id="reportStudentSelect"></select></label>
+            <button id="viewStudentReportBtn" class="secondary">View Student</button>
+            <button id="printStudentReportBtn">Print Student</button>
+            <button id="printClassReportsBtn">Print Class Reports</button>
           </div>
           <div id="reportCards" class="report-grid"></div>
         </section>
