@@ -8,7 +8,10 @@ const HOST = process.env.HOST || "0.0.0.0";
 const ROOT = __dirname;
 const PUBLIC_DIR = path.join(ROOT, "public");
 const DATA_DIR = path.join(ROOT, "data");
-const DB_PATH = process.env.SHULE_DB_PATH || path.join(DATA_DIR, "shule-db.json");
+const DEFAULT_DB_PATH = process.env.VERCEL
+  ? path.join("/tmp", "shule-db.json")
+  : path.join(DATA_DIR, "shule-db.json");
+const DB_PATH = process.env.VERCEL ? DEFAULT_DB_PATH : process.env.SHULE_DB_PATH || DEFAULT_DB_PATH;
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
