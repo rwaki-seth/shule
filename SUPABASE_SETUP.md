@@ -45,3 +45,13 @@ Look for:
 ```
 
 If it says `"json"`, Vercel does not yet have the Supabase environment variables.
+
+## 5. Repair an incomplete schema
+
+If `/api/storage-status` shows a Supabase error like a missing table or missing column, run:
+
+```text
+supabase/repair-schema.sql
+```
+
+This is safe to rerun. It adds missing Shule tables, columns, indexes, and RLS settings without deleting data.
