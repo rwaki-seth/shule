@@ -13,6 +13,7 @@ const {
   sendError,
   sendJson,
   storageMode,
+  storageStatus,
   upsertMark,
   validateMarks
 } = require("./api/_lib/shule");
@@ -56,6 +57,7 @@ async function handleApi(req, res, pathname) {
 
   if (req.method === "GET" && pathname === "/api/bootstrap") return sendJson(res, 200, { ...db, storageMode: storageMode() });
   if (req.method === "GET" && pathname === "/api/results") return sendJson(res, 200, { ...calculateResults(db), storageMode: storageMode() });
+  if (req.method === "GET" && pathname === "/api/storage-status") return sendJson(res, 200, storageStatus());
 
   if (req.method === "POST" && pathname === "/api/school") {
     const body = await parseBody(req);
