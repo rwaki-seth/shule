@@ -6,6 +6,7 @@ const LOCAL_DATA_DIR = path.join(__dirname, "..", "..", "data");
 const DB_PATH = process.env.SHULE_DB_PATH || (process.env.VERCEL ? path.join("/tmp", "shule-mvp2-db.json") : path.join(LOCAL_DATA_DIR, "shule-mvp2-db.json"));
 const SUPABASE_URL = (process.env.SUPABASE_URL || "").replace(/\/$/, "");
 const SUPABASE_KEY = readSupabaseKey();
+let activeStorageMode = supabaseConfigured() ? "supabase" : "json";
 
 const STUDENT_STATUSES = ["Active", "Graduated", "Transferred", "Suspended", "Expelled", "Dropped Out", "Deceased", "Inactive"];
 const ROLES = ["Super Admin", "School Admin", "Head Teacher", "DOS", "Class Teacher", "Subject Teacher", "Viewer"];
@@ -686,18 +687,36 @@ function supabaseConfigured() {
 }
 
 async function loadDb() {
-  if (supabaseConfigured()) return readSupabaseDb();
+  if (supabaseConfigured()) {
+    try {
+      const db = await readSupabaseDb();
+      activeStorageMode = "supabase";
+      return db;
+    } catch (error) {
+      activeStorageMode = "json";
+      console.error(`Supabase read failed; using JSON fallback. ${error.message}`);
+    }
+  }
   return readDb();
 }
 
 async function saveDb(data) {
-  if (supabaseConfigured()) return writeSupabaseDb(data);
+  if (supabaseConfigured()) {
+    try {
+      const db = await writeSupabaseDb(data);
+      activeStorageMode = "supabase";
+      return db;
+    } catch (error) {
+      activeStorageMode = "json";
+      console.error(`Supabase write failed; using JSON fallback. ${error.message}`);
+    }
+  }
   writeDb(data);
   return data;
 }
 
 function storageMode() {
-  return supabaseConfigured() ? "supabase" : "json";
+  return activeStorageMode;
 }
 
 const COLLECTIONS = [
