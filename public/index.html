@@ -17,9 +17,11 @@
       </div>
       <nav>
         <button class="nav-button active" data-view="dashboard">Dashboard</button>
+        <button class="nav-button" data-view="setup">Setup</button>
         <button class="nav-button" data-view="students">Students</button>
         <button class="nav-button" data-view="marks">Marks Upload</button>
         <button class="nav-button" data-view="monitoring">Monitoring</button>
+        <button class="nav-button" data-view="promotion">Promotion</button>
         <button class="nav-button" data-view="analytics">Analytics</button>
         <button class="nav-button" data-view="reports">Reports</button>
       </nav>
@@ -79,6 +81,39 @@
         </section>
       </section>
 
+      <section id="setup" class="view">
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Structured Setup</h2>
+            <span>School profile, academic setup, staff, assignments, grading, and roles</span>
+          </div>
+          <form id="schoolProfileForm" class="form-grid">
+            <label>School Name <input name="name" id="schoolNameInput"></label>
+            <label>Short Name <input name="shortName" id="schoolShortNameInput"></label>
+            <label>Motto <input name="motto" id="schoolMottoInput"></label>
+            <label>Phone <input name="phone" id="schoolPhoneInput"></label>
+            <label>Email <input name="email" id="schoolEmailInput"></label>
+            <label>Address <input name="address" id="schoolAddressInput"></label>
+            <label>Logo URL <input name="logoUrl" id="schoolLogoInput"></label>
+            <label>Watermark <input name="watermarkText" id="schoolWatermarkInput"></label>
+            <button type="submit">Save School Profile</button>
+          </form>
+        </section>
+
+        <div class="setup-grid">
+          <section class="panel"><div class="panel-heading"><h2>Academic Years</h2><span id="academicYearCount"></span></div><div class="compact-list" id="academicYearList"></div></section>
+          <section class="panel"><div class="panel-heading"><h2>Terms</h2><span id="termCount"></span></div><div class="compact-list" id="termList"></div></section>
+          <section class="panel"><div class="panel-heading"><h2>Exam Types</h2><span id="examTypeCount"></span></div><div class="compact-list" id="examTypeList"></div></section>
+          <section class="panel"><div class="panel-heading"><h2>Classes</h2><span id="classCount"></span></div><div class="compact-list" id="classList"></div></section>
+          <section class="panel"><div class="panel-heading"><h2>Streams</h2><span id="streamCount"></span></div><div class="compact-list" id="streamList"></div></section>
+          <section class="panel"><div class="panel-heading"><h2>Subjects</h2><span id="subjectCount"></span></div><div class="compact-list" id="subjectList"></div></section>
+          <section class="panel"><div class="panel-heading"><h2>Teachers</h2><span id="teacherCount"></span></div><div class="compact-list" id="teacherList"></div></section>
+          <section class="panel"><div class="panel-heading"><h2>Teacher Assignments</h2><span id="assignmentCount"></span></div><div class="compact-list" id="assignmentList"></div></section>
+          <section class="panel"><div class="panel-heading"><h2>Grading Scale</h2><span id="gradingCount"></span></div><div class="compact-list" id="gradingList"></div></section>
+          <section class="panel"><div class="panel-heading"><h2>Roles</h2><span id="roleCount"></span></div><div class="compact-list" id="roleList"></div></section>
+        </div>
+      </section>
+
       <section id="students" class="view">
         <section class="panel">
           <div class="panel-heading">
@@ -86,14 +121,19 @@
             <span>Active learners appear in marks entry; inactive records remain historical</span>
           </div>
           <form id="studentForm" class="form-grid">
+            <label>Student ID <input name="studentId" required></label>
             <label>Admission Number <input name="admissionNo" required></label>
             <label>Full Name <input name="name" required></label>
             <label>Gender <select name="gender"><option>F</option><option>M</option></select></label>
             <label>Date of Birth <input name="dateOfBirth" type="date"></label>
+            <label>Class <select name="classLevel" id="studentClassLevelSelect"></select></label>
+            <label>Stream <select name="stream" id="studentStreamSelect"></select></label>
+            <label>House <input name="house" placeholder="Blue, Red, Yellow..."></label>
             <label>Parent/Guardian <input name="guardian"></label>
             <label>Parent Contact <input name="contact"></label>
-            <label>Class & Stream <select name="classId" id="studentClassSelect"></select></label>
+            <label>Photo URL <input name="photo" placeholder="https://..."></label>
             <label>Status <select name="status" id="studentStatusSelect"></select></label>
+            <label>Admission Date <input name="admissionDate" type="date"></label>
             <label>Attendance % <input name="attendance" type="number" min="0" max="100" value="90"></label>
             <label>Notes <input name="notes"></label>
             <button type="submit">Add Student</button>
@@ -108,7 +148,7 @@
           <div class="table-wrap">
             <table>
               <thead>
-                <tr><th>Adm No.</th><th>Name</th><th>Gender</th><th>Class</th><th>Status</th><th>Parent</th><th>Contact</th></tr>
+                <tr><th>Student ID</th><th>Name</th><th>Gender</th><th>Class</th><th>Stream</th><th>House</th><th>Status</th><th>Parent</th><th>Contact</th></tr>
               </thead>
               <tbody id="studentRegisterBody"></tbody>
             </table>
@@ -123,10 +163,16 @@
             <span>CSV validation checks student, class, stream, subject, score, duplicates, and assignment</span>
           </div>
           <div class="marks-toolbar">
-            <label>Class & Stream <select id="marksClassSelect"></select></label>
+            <label>Academic Year <select id="marksAcademicYearSelect"></select></label>
+            <label>Term <select id="marksTermSelect"></select></label>
+            <label>Exam Type <select id="marksExamTypeSelect"></select></label>
+            <label>Class <select id="marksClassLevelSelect"></select></label>
+            <label>Stream <select id="marksStreamSelect"></select></label>
             <label>Subject <select id="subjectSelect"></select></label>
+            <label>Teacher <select id="marksTeacherSelect"></select></label>
             <label>CSV Upload <input id="csvInput" type="file" accept=".csv,text/csv"></label>
             <button id="downloadTemplateBtn" class="secondary">Download CSV Template</button>
+            <button id="downloadErrorsBtn" class="secondary">Download Error Report</button>
             <button id="saveMarksBtn">Save Marks</button>
           </div>
           <div class="table-wrap">
@@ -150,10 +196,13 @@
 
       <section id="monitoring" class="view">
         <div class="metric-grid">
+          <article class="metric"><span>Expected Uploads</span><strong id="metricExpected">0</strong></article>
           <article class="metric status-complete"><span>Completed Uploads</span><strong id="metricCompleted">0</strong></article>
           <article class="metric status-pending"><span>Pending Uploads</span><strong id="metricPending">0</strong></article>
-          <article class="metric status-late"><span>Late Uploads</span><strong id="metricLate">0</strong></article>
+          <article class="metric status-late"><span>Overdue Uploads</span><strong id="metricLate">0</strong></article>
           <article class="metric status-late"><span>Validation Failures</span><strong id="metricErrors">0</strong></article>
+          <article class="metric"><span>Teachers Uploaded</span><strong id="metricTeachersUploaded">0</strong></article>
+          <article class="metric status-pending"><span>Teachers Pending</span><strong id="metricTeachersPending">0</strong></article>
         </div>
 
         <section class="panel">
@@ -166,6 +215,37 @@
 
         <section class="panel">
           <div class="panel-heading">
+            <h2>Deadline Management</h2>
+            <span>Set by year, term, exam, class, stream, subject, and teacher</span>
+          </div>
+          <form id="deadlineForm" class="form-grid">
+            <label>Academic Year <select name="academicYear" id="deadlineAcademicYearSelect"></select></label>
+            <label>Term <select name="term" id="deadlineTermSelect"></select></label>
+            <label>Exam Type <select name="examType" id="deadlineExamTypeSelect"></select></label>
+            <label>Class <select name="classLevel" id="deadlineClassLevelSelect"></select></label>
+            <label>Stream <select name="stream" id="deadlineStreamSelect"></select></label>
+            <label>Subject <select name="subjectId" id="deadlineSubjectSelect"></select></label>
+            <label>Teacher <select name="teacherId" id="deadlineTeacherSelect"></select></label>
+            <label>Due Date & Time <input name="dueAt" type="datetime-local" required></label>
+            <button type="submit">Save Deadline</button>
+          </form>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Upload Monitoring</h2>
+            <span>Expected vs completed uploads and teacher accountability</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Teacher</th><th>Class</th><th>Subject</th><th>Status</th><th>Uploaded</th><th>Valid</th><th>Errors</th></tr></thead>
+              <tbody id="uploadMonitorBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
             <h2>Audit Trail</h2>
             <span>Mark uploads, edits, report generation, and approvals</span>
           </div>
@@ -173,6 +253,30 @@
             <table>
               <thead><tr><th>User</th><th>Action</th><th>Timestamp</th><th>New Value</th></tr></thead>
               <tbody id="auditBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section id="promotion" class="view">
+        <div class="metric-grid">
+          <article class="metric"><span>Promotion Rule</span><strong id="promotionRuleMetric">-</strong></article>
+          <article class="metric status-complete"><span>Promote</span><strong id="promotionPromoteMetric">0</strong></article>
+          <article class="metric status-pending"><span>Manual Review</span><strong id="promotionReviewMetric">0</strong></article>
+          <article class="metric status-late"><span>Repeat</span><strong id="promotionRepeatMetric">0</strong></article>
+        </div>
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Promotion Preview</h2>
+            <span>Preview, approve, update class/stream, and save promotion history</span>
+          </div>
+          <div class="actions">
+            <button id="approvePromotionBtn">Approve Promotion</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Adm No.</th><th>Student</th><th>Current</th><th>Average</th><th>Failed</th><th>Missing</th><th>Decision</th><th>Target</th></tr></thead>
+              <tbody id="promotionBody"></tbody>
             </table>
           </div>
         </section>

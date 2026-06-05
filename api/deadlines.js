@@ -1,12 +1,12 @@
-const { addStudent, readDb, sendError, sendJson, writeDb } = require("./_lib/shule");
+const { readDb, saveDeadline, sendError, sendJson, writeDb } = require("./_lib/shule");
 
 module.exports = function handler(req, res) {
   try {
     if (req.method !== "POST") return sendError(res, 405, "Method not allowed");
     const db = readDb();
-    const student = addStudent(db, req.body || {});
+    const deadline = saveDeadline(db, req.body || {});
     writeDb(db);
-    return sendJson(res, 201, student);
+    return sendJson(res, 200, deadline);
   } catch (error) {
     return sendError(res, 400, error.message || "Request failed");
   }

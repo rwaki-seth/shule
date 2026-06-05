@@ -16,26 +16,45 @@ const els = {
   metricCompletion: document.getElementById("metricCompletion"),
   metricAverage: document.getElementById("metricAverage"),
   rankingBody: document.getElementById("rankingBody"),
+  schoolProfileForm: document.getElementById("schoolProfileForm"),
   studentForm: document.getElementById("studentForm"),
-  studentClassSelect: document.getElementById("studentClassSelect"),
+  studentClassLevelSelect: document.getElementById("studentClassLevelSelect"),
+  studentStreamSelect: document.getElementById("studentStreamSelect"),
   studentStatusSelect: document.getElementById("studentStatusSelect"),
   studentCountLabel: document.getElementById("studentCountLabel"),
   studentRegisterBody: document.getElementById("studentRegisterBody"),
-  marksClassSelect: document.getElementById("marksClassSelect"),
+  marksAcademicYearSelect: document.getElementById("marksAcademicYearSelect"),
+  marksTermSelect: document.getElementById("marksTermSelect"),
+  marksExamTypeSelect: document.getElementById("marksExamTypeSelect"),
+  marksClassLevelSelect: document.getElementById("marksClassLevelSelect"),
+  marksStreamSelect: document.getElementById("marksStreamSelect"),
+  marksTeacherSelect: document.getElementById("marksTeacherSelect"),
   subjectSelect: document.getElementById("subjectSelect"),
   marksBody: document.getElementById("marksBody"),
   saveMarksBtn: document.getElementById("saveMarksBtn"),
   csvInput: document.getElementById("csvInput"),
   downloadTemplateBtn: document.getElementById("downloadTemplateBtn"),
+  downloadErrorsBtn: document.getElementById("downloadErrorsBtn"),
   uploadSummary: document.getElementById("uploadSummary"),
   uploadErrors: document.getElementById("uploadErrors"),
+  metricExpected: document.getElementById("metricExpected"),
   metricCompleted: document.getElementById("metricCompleted"),
   metricPending: document.getElementById("metricPending"),
   metricLate: document.getElementById("metricLate"),
   metricErrors: document.getElementById("metricErrors"),
+  metricTeachersUploaded: document.getElementById("metricTeachersUploaded"),
+  metricTeachersPending: document.getElementById("metricTeachersPending"),
   deadlineGrid: document.getElementById("deadlineGrid"),
+  deadlineForm: document.getElementById("deadlineForm"),
+  uploadMonitorBody: document.getElementById("uploadMonitorBody"),
   auditBody: document.getElementById("auditBody"),
   subjectBars: document.getElementById("subjectBars"),
+  promotionRuleMetric: document.getElementById("promotionRuleMetric"),
+  promotionPromoteMetric: document.getElementById("promotionPromoteMetric"),
+  promotionReviewMetric: document.getElementById("promotionReviewMetric"),
+  promotionRepeatMetric: document.getElementById("promotionRepeatMetric"),
+  promotionBody: document.getElementById("promotionBody"),
+  approvePromotionBtn: document.getElementById("approvePromotionBtn"),
   reportModeLabel: document.getElementById("reportModeLabel"),
   reportClassSelect: document.getElementById("reportClassSelect"),
   reportStudentSelect: document.getElementById("reportStudentSelect"),
@@ -52,7 +71,11 @@ async function api(path, options = {}) {
     ...options
   });
   const payload = await response.json();
-  if (!response.ok) throw new Error(payload.error || "Request failed");
+  if (!response.ok) {
+    const error = new Error(payload.error || "Request failed");
+    error.payload = payload;
+    throw error;
+  }
   return payload;
 }
 
@@ -64,12 +87,14 @@ async function loadData() {
 
 function renderAll() {
   renderSchoolMeta();
-  renderClassAndSubjectSelects();
+  renderSetup();
+  renderSelects();
   renderDashboard();
   renderStudents();
   renderMarksEntry();
   renderUploadErrors();
   renderMonitoring();
+  renderPromotion();
   renderAnalytics();
   renderReportSelect();
   renderReports();
@@ -78,14 +103,80 @@ function renderAll() {
 function renderSchoolMeta() {
   els.schoolMeta.textContent = `${db.school.academicYear} | ${db.school.term} | ${db.school.exam}`;
   els.heroSchool.textContent = db.school.name;
+  setValue("schoolNameInput", db.school.name);
+  setValue("schoolShortNameInput", db.school.shortName);
+  setValue("schoolMottoInput", db.school.motto);
+  setValue("schoolPhoneInput", db.school.phone);
+  setValue("schoolEmailInput", db.school.email);
+  setValue("schoolAddressInput", db.school.address);
+  setValue("schoolLogoInput", db.school.logoUrl);
+  setValue("schoolWatermarkInput", db.school.watermarkText);
 }
 
-function renderClassAndSubjectSelects() {
-  const classOptions = db.classes.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join("");
-  els.studentClassSelect.innerHTML = classOptions;
-  els.marksClassSelect.innerHTML = classOptions;
-  els.subjectSelect.innerHTML = db.subjects.map((subject) => `<option value="${subject.id}">${escapeHtml(subject.code)} - ${escapeHtml(subject.name)}</option>`).join("");
+function renderSetup() {
+  renderCompact("academicYear", db.academicYears, (item) => `${item.name} ${item.active ? "Active" : "Closed"}`);
+  renderCompact("term", db.terms, (item) => `${item.name} ${item.active ? "Active" : ""}`);
+  renderCompact("examType", db.examTypes, (item) => `${item.name} (${item.weight}%)`);
+  renderCompact("class", db.classes, (item) => item.name);
+  renderCompact("stream", db.streams, (item) => item.name);
+  renderCompact("subject", db.subjects, (item) => `${item.code} - ${item.name}`);
+  renderCompact("teacher", db.teachers, (item) => `${item.name} - ${item.role}`);
+  renderCompact("assignment", db.teacherAssignments, (item) => {
+    const teacher = teacherById(item.teacherId);
+    const classInfo = classById(item.classId);
+    const subject = subjectById(item.subjectId);
+    return `${teacher?.name || item.teacherId} / ${classInfo?.name || item.classId} / ${subject?.code || item.subjectId}`;
+  });
+  renderCompact("grading", db.gradingScale, (item) => `${item.grade}: ${item.min}-${item.max} agg ${item.aggregate}`);
+  renderCompact("role", db.roles, (item) => item.name);
+}
+
+function renderCompact(prefix, items, labelFn) {
+  const count = document.getElementById(`${prefix}Count`);
+  const list = document.getElementById(`${prefix}List`);
+  if (count) count.textContent = `${items.length} record(s)`;
+  if (list) list.innerHTML = items.map((item) => `<div><strong>${escapeHtml(labelFn(item))}</strong></div>`).join("");
+}
+
+function renderSelects() {
+  const years = db.academicYears.map((item) => `<option value="${item.name}">${escapeHtml(item.name)}</option>`).join("");
+  const terms = db.terms.map((item) => `<option value="${item.name}">${escapeHtml(item.name)}</option>`).join("");
+  const exams = db.examTypes.map((item) => `<option value="${item.name}">${escapeHtml(item.name)}</option>`).join("");
+  const levels = db.classLevels.map((item) => `<option value="${item.name}">${escapeHtml(item.name)}</option>`).join("");
+  const streams = db.streams.map((item) => `<option value="${item.name}">${escapeHtml(item.name)}</option>`).join("");
+  const subjects = db.subjects.map((subject) => `<option value="${subject.id}">${escapeHtml(subject.code)} - ${escapeHtml(subject.name)}</option>`).join("");
+  const teachers = db.teachers.map((teacher) => `<option value="${teacher.id}">${escapeHtml(teacher.name)} (${escapeHtml(teacher.role)})</option>`).join("");
+
+  setOptions(els.studentClassLevelSelect, levels, "P6");
+  setOptions(els.studentStreamSelect, streams, "East");
   els.studentStatusSelect.innerHTML = STATUS_OPTIONS.map((status) => `<option>${status}</option>`).join("");
+
+  setOptions(els.marksAcademicYearSelect, years, db.school.academicYear);
+  setOptions(els.marksTermSelect, terms, db.school.term);
+  setOptions(els.marksExamTypeSelect, exams, db.school.exam);
+  setOptions(els.marksClassLevelSelect, levels, "P6");
+  setOptions(els.marksStreamSelect, streams, "East");
+  setOptions(els.subjectSelect, subjects, "eng");
+  setOptions(els.marksTeacherSelect, teachers, assignedTeacherId(currentMarksClassId(), els.subjectSelect.value) || db.teachers[0]?.id);
+
+  for (const id of ["deadlineAcademicYearSelect", "deadlineTermSelect", "deadlineExamTypeSelect", "deadlineClassLevelSelect", "deadlineStreamSelect", "deadlineSubjectSelect", "deadlineTeacherSelect"]) {
+    const element = document.getElementById(id);
+    if (!element) continue;
+    if (id.includes("AcademicYear")) setOptions(element, years, db.school.academicYear);
+    if (id.includes("Term")) setOptions(element, terms, db.school.term);
+    if (id.includes("ExamType")) setOptions(element, exams, db.school.exam);
+    if (id.includes("ClassLevel")) setOptions(element, levels, "P6");
+    if (id.includes("Stream")) setOptions(element, streams, "East");
+    if (id.includes("Subject")) setOptions(element, subjects, "eng");
+    if (id.includes("Teacher")) setOptions(element, teachers, assignedTeacherId("p6-east", "eng") || db.teachers[0]?.id);
+  }
+}
+
+function setOptions(element, html, selectedValue) {
+  if (!element) return;
+  const previous = element.value;
+  element.innerHTML = html;
+  element.value = previous || selectedValue || element.options[0]?.value || "";
 }
 
 function renderDashboard() {
@@ -110,13 +201,15 @@ function renderDashboard() {
 function renderStudents() {
   els.studentCountLabel.textContent = `${results.counts.activeStudents} active, ${results.counts.inactiveStudents} historical`;
   els.studentRegisterBody.innerHTML = db.students.map((student) => {
-    const classInfo = db.classes.find((item) => item.id === student.classId) || {};
+    const classInfo = classById(student.classId) || {};
     return `
       <tr>
-        <td>${escapeHtml(student.admissionNo)}</td>
-        <td>${escapeHtml(student.name)}</td>
+        <td>${escapeHtml(student.studentId || student.admissionNo)}</td>
+        <td>${escapeHtml(student.name)}<br><span>${escapeHtml(student.admissionNo)}</span></td>
         <td>${escapeHtml(student.gender)}</td>
-        <td>${escapeHtml(classInfo.name || student.classId)}</td>
+        <td>${escapeHtml(classInfo.level || student.classLevel || "")}</td>
+        <td>${escapeHtml(classInfo.stream || student.stream || "")}</td>
+        <td>${escapeHtml(student.house || "-")}</td>
         <td><span class="pill ${student.status === "Active" ? "pill-green" : "pill-muted"}">${escapeHtml(student.status)}</span></td>
         <td>${escapeHtml(student.guardian || "-")}</td>
         <td>${escapeHtml(student.contact || "-")}</td>
@@ -126,24 +219,28 @@ function renderStudents() {
 }
 
 function renderMarksEntry() {
-  const classId = els.marksClassSelect.value || db.classes[0]?.id;
+  const classId = currentMarksClassId();
   const subjectId = els.subjectSelect.value || db.subjects[0]?.id;
+  const teacherId = assignedTeacherId(classId, subjectId) || els.marksTeacherSelect.value;
+  if (teacherId) els.marksTeacherSelect.value = teacherId;
   const learners = db.students.filter((student) => student.status === "Active" && student.classId === classId);
-  const markMap = new Map(db.marks.filter((mark) => mark.subjectId === subjectId).map((mark) => [mark.studentId, mark]));
-  els.marksBody.innerHTML = learners.map((student) => {
-    const classInfo = db.classes.find((item) => item.id === student.classId) || {};
+  const markMap = new Map(db.marks
+    .filter((mark) => mark.subjectId === subjectId && mark.classId === classId && mark.academicYear === els.marksAcademicYearSelect.value && mark.term === els.marksTermSelect.value && mark.examType === els.marksExamTypeSelect.value)
+    .map((mark) => [mark.studentId, mark]));
+
+  els.marksBody.innerHTML = learners.length ? learners.map((student) => {
     const mark = markMap.get(student.id);
     return `
       <tr>
         <td>${escapeHtml(student.admissionNo)}</td>
         <td>${escapeHtml(student.name)}</td>
-        <td>${escapeHtml(classInfo.level || "")}</td>
-        <td>${escapeHtml(classInfo.stream || "")}</td>
-        <td><input class="score-input" type="number" min="0" max="100" data-student-id="${student.id}" value="${mark?.score ?? ""}"></td>
+        <td>${escapeHtml(student.classLevel || classById(student.classId)?.level || "")}</td>
+        <td>${escapeHtml(student.stream || classById(student.classId)?.stream || "")}</td>
+        <td><input class="score-input" type="number" min="0" max="100" data-student-id="${student.id}" data-admission-no="${escapeHtml(student.admissionNo)}" value="${mark?.score ?? ""}"></td>
         <td><span class="pill ${mark?.status === "Captured" ? "pill-green" : "pill-orange"}">${mark?.status || "Missing"}</span></td>
       </tr>
     `;
-  }).join("");
+  }).join("") : `<tr><td colspan="6">No active learners for this class and stream.</td></tr>`;
 }
 
 function renderUploadErrors() {
@@ -155,20 +252,58 @@ function renderUploadErrors() {
 }
 
 function renderMonitoring() {
+  els.metricExpected.textContent = results.monitoring.expectedUploads;
   els.metricCompleted.textContent = results.monitoring.completedUploads;
   els.metricPending.textContent = results.monitoring.pendingUploads;
-  els.metricLate.textContent = results.monitoring.lateUploads;
+  els.metricLate.textContent = results.monitoring.overdueUploads;
   els.metricErrors.textContent = results.monitoring.validationFailures;
+  els.metricTeachersUploaded.textContent = results.monitoring.teachersUploaded;
+  els.metricTeachersPending.textContent = results.monitoring.teachersPending;
   els.deadlineGrid.innerHTML = results.deadlines.map((deadline) => `
     <article class="deadline-card ${deadline.status}">
       <strong>${escapeHtml(deadline.subjectName)}</strong>
-      <span>${escapeHtml(deadline.className)}</span>
+      <span>${escapeHtml(deadline.className)} | ${escapeHtml(deadline.teacherName || "")}</span>
       <small>${formatDate(deadline.dueAt)}</small>
       <em>${escapeHtml(deadline.status)}</em>
     </article>
   `).join("");
-  els.auditBody.innerHTML = results.audit.map((audit) => `
-    <tr><td>${escapeHtml(audit.user)}</td><td>${escapeHtml(audit.action)}</td><td>${formatDate(audit.timestamp)}</td><td>${escapeHtml(audit.newValue)}</td></tr>
+  els.uploadMonitorBody.innerHTML = results.deadlines.map((deadline) => {
+    const batch = results.uploadBatches.find((item) => item.classId === deadline.classId && item.subjectId === deadline.subjectId && item.teacherId === deadline.teacherId);
+    return `
+      <tr>
+        <td>${escapeHtml(deadline.teacherName || "-")}</td>
+        <td>${escapeHtml(deadline.className)}</td>
+        <td>${escapeHtml(deadline.subjectName)}</td>
+        <td><span class="pill ${deadline.status === "complete" ? "pill-green" : deadline.status === "late" ? "pill-red" : "pill-orange"}">${escapeHtml(deadline.status)}</span></td>
+        <td>${batch ? formatDate(batch.uploadedAt) : "-"}</td>
+        <td>${batch?.validRows ?? "-"}</td>
+        <td>${batch?.errorRows ?? "-"}</td>
+      </tr>
+    `;
+  }).join("");
+  els.auditBody.innerHTML = results.audit.map((auditRow) => `
+    <tr><td>${escapeHtml(auditRow.user || "-")}</td><td>${escapeHtml(auditRow.action)}</td><td>${formatDate(auditRow.timestamp)}</td><td>${escapeHtml(auditRow.newValue || "-")}</td></tr>
+  `).join("");
+}
+
+function renderPromotion() {
+  const preview = results.promotionPreview || [];
+  const rule = db.promotionRules;
+  els.promotionRuleMetric.textContent = `${rule.minAverage}% / ${rule.maxFailedSubjects} fails`;
+  els.promotionPromoteMetric.textContent = preview.filter((item) => item.decision === "PROMOTED").length;
+  els.promotionReviewMetric.textContent = preview.filter((item) => item.decision === "MANUAL REVIEW").length;
+  els.promotionRepeatMetric.textContent = preview.filter((item) => item.decision === "REPEAT").length;
+  els.promotionBody.innerHTML = preview.map((item) => `
+    <tr>
+      <td>${escapeHtml(item.admissionNo)}</td>
+      <td>${escapeHtml(item.name)}</td>
+      <td>${escapeHtml(item.currentClass)}</td>
+      <td>${item.average}</td>
+      <td>${item.failedSubjects}</td>
+      <td>${item.missingSubjects}</td>
+      <td><span class="pill ${promotionClass(item.decision)}">${escapeHtml(item.decision)}</span></td>
+      <td>${escapeHtml(item.targetClassId === "graduated" ? "Graduate" : classById(item.targetClassId)?.name || item.targetClassId)}</td>
+    </tr>
   `).join("");
 }
 
@@ -189,24 +324,17 @@ function renderReportSelect() {
   if (!selectedReportClassId || !classes.some((item) => item.id === selectedReportClassId)) {
     selectedReportClassId = firstClassWithLearners?.id || "";
   }
-
   els.reportClassSelect.innerHTML = classes.map((item) => `
-    <option value="${item.id}" ${item.count ? "" : "disabled"}>
-      ${escapeHtml(item.name)} (${item.count} learner${item.count === 1 ? "" : "s"})
-    </option>
+    <option value="${item.id}" ${item.count ? "" : "disabled"}>${escapeHtml(item.name)} (${item.count} learner${item.count === 1 ? "" : "s"})</option>
   `).join("");
   els.reportClassSelect.value = selectedReportClassId;
 
   const classStudents = selectedReportClassStudents();
-  if (!classStudents.some((student) => student.id === selectedReportStudentId)) {
-    selectedReportStudentId = classStudents[0]?.id || null;
-  }
-
+  if (!classStudents.some((student) => student.id === selectedReportStudentId)) selectedReportStudentId = classStudents[0]?.id || null;
   els.reportStudentSelect.innerHTML = classStudents.length
     ? classStudents.map((student) => `<option value="${student.id}">${student.classPosition}. ${escapeHtml(student.name)} (${escapeHtml(student.admissionNo)})</option>`).join("")
     : `<option value="">No active learners in this class</option>`;
   if (selectedReportStudentId) els.reportStudentSelect.value = selectedReportStudentId;
-
   const disabled = classStudents.length === 0;
   els.reportStudentSelect.disabled = disabled;
   els.viewStudentReportBtn.disabled = disabled;
@@ -216,31 +344,11 @@ function renderReportSelect() {
 
 function renderReports() {
   const classStudents = selectedReportClassStudents();
-  const classInfo = db.classes.find((item) => item.id === selectedReportClassId);
+  const classInfo = classById(selectedReportClassId);
   const className = classInfo?.name || "Selected class";
-  const students = reportMode === "class"
-    ? classStudents
-    : classStudents.filter((student) => student.id === selectedReportStudentId);
-
-  els.reportModeLabel.textContent = reportMode === "class"
-    ? `${className} reports: one learner per printed packet`
-    : `Individual report preview: ${className}`;
-  els.reportCards.innerHTML = students.length
-    ? students.map(renderReportPacket).join("")
-    : `<div class="empty-state">Select a class with active learners to preview and print reports.</div>`;
-}
-
-function reportClassesWithCounts() {
-  return db.classes.map((classInfo) => ({
-    ...classInfo,
-    count: results.students.filter((student) => student.classId === classInfo.id).length
-  }));
-}
-
-function selectedReportClassStudents() {
-  return results.students
-    .filter((student) => student.classId === selectedReportClassId)
-    .sort((a, b) => a.classPosition - b.classPosition || a.name.localeCompare(b.name));
+  const students = reportMode === "class" ? classStudents : classStudents.filter((student) => student.id === selectedReportStudentId);
+  els.reportModeLabel.textContent = reportMode === "class" ? `${className} reports: one learner per printed packet` : `Individual report preview: ${className}`;
+  els.reportCards.innerHTML = students.length ? students.map(renderReportPacket).join("") : `<div class="empty-state">Select a class with active learners to preview and print reports.</div>`;
 }
 
 function renderReportPacket(student) {
@@ -256,9 +364,9 @@ function renderReportPacket(student) {
 function renderReportPageOne(student) {
   return `
     <section class="report-page page-one">
-      <div class="watermark">MJA</div>
+      <div class="watermark">${escapeHtml(db.school.watermarkText || "MJA")}</div>
       <header class="report-header">
-        <div class="logo-box">MJA</div>
+        <div class="logo-box">${db.school.logoUrl ? `<img src="${escapeHtml(db.school.logoUrl)}" alt="Logo">` : "MJA"}</div>
         <div>
           <h2>${escapeHtml(results.school.name)}</h2>
           <p>${escapeHtml(results.school.motto)}</p>
@@ -268,8 +376,8 @@ function renderReportPageOne(student) {
       </header>
       <div class="report-title">Learner Academic Report</div>
       <section class="student-strip">
-        <div class="photo-box">Photo</div>
-        <div><span>Admission No.</span><strong>${escapeHtml(student.admissionNo)}</strong></div>
+        <div class="photo-box">${student.photo ? `<img src="${escapeHtml(student.photo)}" alt="Student photo">` : "Photo"}</div>
+        <div><span>Student ID</span><strong>${escapeHtml(student.studentId || student.admissionNo)}</strong></div>
         <div><span>Name</span><strong>${escapeHtml(student.name)}</strong></div>
         <div><span>Class</span><strong>${escapeHtml(student.className)} ${escapeHtml(student.stream)}</strong></div>
         <div><span>Attendance</span><strong>${student.attendance}%</strong></div>
@@ -301,7 +409,7 @@ function renderReportPageTwo(student) {
         <div class="chart-card"><h3>Subject Performance</h3>${student.subjects.slice(0, 8).map((subject) => `<div class="mini-bar"><span>${escapeHtml(subject.code)}</span><b style="width:${subject.score || 8}%"></b><em>${valueOrDash(subject.score)}</em></div>`).join("")}</div>
         <div class="chart-card"><h3>Term Trend</h3><div class="trend-line"><span style="height:45%"></span><span style="height:62%"></span><span style="height:${Math.max(10, student.average)}%"></span></div><p>Beginning, mid, and end term trend indicator.</p></div>
         <div class="chart-card"><h3>Attendance Analytics</h3><div class="donut" style="--value:${student.attendance}">${student.attendance}%</div></div>
-        <div class="chart-card"><h3>Competency Ratings</h3>${Object.entries(student.competencies).map(([label, value]) => `<div class="rating-row"><span>${escapeHtml(label)}</span><strong>${"●".repeat(value)}${"○".repeat(5 - value)}</strong></div>`).join("")}</div>
+        <div class="chart-card"><h3>Competency Ratings</h3>${Object.entries(student.competencies || {}).map(([label, value]) => `<div class="rating-row"><span>${escapeHtml(label)}</span><strong>${value}/5</strong></div>`).join("")}</div>
       </div>
       ${reportFooter(student)}
     </section>
@@ -311,13 +419,18 @@ function renderReportPageTwo(student) {
 function renderReportPageThree(student) {
   return `
     <section class="report-page">
-      <div class="report-subhead"><h2>Comments, Activities & Verification</h2><span>${escapeHtml(student.verificationCode)}</span></div>
+      <div class="report-subhead"><h2>Comments, Matrix & Verification</h2><span>${escapeHtml(student.verificationCode)}</span></div>
       <div class="comment-grid">
         <div><h3>Class Teacher Comment</h3><p>${escapeHtml(db.comments.teacher)}</p></div>
         <div><h3>Head Teacher Comment</h3><p>${escapeHtml(db.comments.headteacher)}</p></div>
         <div><h3>Co-Curricular Activities</h3><p>${escapeHtml(db.activities.join(", "))}</p></div>
         <div><h3>Student Conduct</h3><p>${escapeHtml(student.conduct)}</p></div>
       </div>
+      <h3 class="matrix-heading">Grading Matrix</h3>
+      <table class="report-table grading-matrix">
+        <thead><tr><th>Grade</th><th>Range</th><th>Aggregate</th><th>Comment</th></tr></thead>
+        <tbody>${db.gradingScale.map((row) => `<tr><td>${row.grade}</td><td>${row.min}-${row.max}</td><td>${row.aggregate}</td><td>${escapeHtml(row.comment)}</td></tr>`).join("")}</tbody>
+      </table>
       <section class="signature-grid">
         <div>Class Teacher Signature</div>
         <div>Head Teacher Signature</div>
@@ -334,66 +447,116 @@ function reportFooter(student) {
   return `<footer class="report-footer"><span>Generated By: Shule Results Management System</span><span>Generated Date: ${new Date().toLocaleDateString()}</span><span>Verification Code: ${escapeHtml(student.verificationCode)}</span></footer>`;
 }
 
+async function saveSchoolProfile(event) {
+  event.preventDefault();
+  const body = Object.fromEntries(new FormData(els.schoolProfileForm).entries());
+  await api("/api/school", { method: "POST", body: JSON.stringify(body) });
+  toast("School profile saved");
+  await loadData();
+}
+
+async function saveStudent(event) {
+  event.preventDefault();
+  const body = Object.fromEntries(new FormData(els.studentForm).entries());
+  body.admissionNo = body.admissionNo || body.studentId;
+  body.classId = classIdFrom(body.classLevel, body.stream);
+  await api("/api/students", { method: "POST", body: JSON.stringify(body) });
+  els.studentForm.reset();
+  toast("Student added");
+  await loadData();
+}
+
 async function saveMarks() {
-  const subjectId = els.subjectSelect.value;
+  const context = marksContext();
   const marks = [...document.querySelectorAll(".score-input")]
     .filter((input) => input.value !== "")
-    .map((input) => ({ studentId: input.dataset.studentId, subjectId, score: Number(input.value), status: "Captured" }));
-  await api("/api/marks", { method: "POST", body: JSON.stringify({ marks }) });
-  toast(`Saved ${marks.length} mark entries`);
-  await loadData();
+    .map((input, index) => ({ rowNumber: index + 2, studentId: input.dataset.studentId, admissionNo: input.dataset.admissionNo, score: Number(input.value) }));
+  try {
+    await api("/api/marks", { method: "POST", body: JSON.stringify({ ...context, marks }) });
+    latestUploadErrors = [];
+    toast(`Saved ${marks.length} mark entries`);
+    await loadData();
+  } catch (error) {
+    latestUploadErrors = error.payload?.errors || [];
+    renderUploadErrors();
+    toast(`${latestUploadErrors.length || 1} validation issue(s) found`);
+  }
 }
 
 function downloadCsvTemplate() {
-  const classId = els.marksClassSelect.value;
-  const subject = db.subjects.find((item) => item.id === els.subjectSelect.value);
-  const classInfo = db.classes.find((item) => item.id === classId);
-  const learners = db.students.filter((student) => student.status === "Active" && student.classId === classId);
-  const lines = ["Admission Number,Student Name,Class,Stream,Subject,Mark,Remarks"];
-  for (const student of learners) lines.push(`${csvCell(student.admissionNo)},${csvCell(student.name)},${classInfo.level},${classInfo.stream},${csvCell(subject.name)},,`);
-  downloadText(`${subject.code}_${classInfo.name}_marks_template.csv`, lines.join("\n"));
+  const context = marksContext();
+  const subject = subjectById(context.subjectId);
+  const classInfo = classById(context.classId);
+  const learners = db.students.filter((student) => student.status === "Active" && student.classId === context.classId);
+  const lines = ["Academic Year,Term,Exam Type,Class,Stream,Subject,Admission Number,Student Name,Mark,Remarks"];
+  for (const student of learners) {
+    lines.push([context.academicYear, context.term, context.examType, classInfo.level, classInfo.stream, subject.name, student.admissionNo, student.name, "", ""].map(csvCell).join(","));
+  }
+  downloadText(`${context.academicYear}_${context.term}_${context.examType}_${classInfo.name}_${subject.code}_template.csv`, lines.join("\n"));
 }
 
 async function importCsv(file) {
+  const context = marksContext();
   const text = await file.text();
   const rows = parseCsv(text);
   const errors = [];
-  const classId = els.marksClassSelect.value;
-  const subjectId = els.subjectSelect.value;
-  const classInfo = db.classes.find((item) => item.id === classId);
-  const subject = db.subjects.find((item) => item.id === subjectId);
-  const seen = new Set();
   const marks = [];
+  const seen = new Set();
   rows.slice(1).forEach((row, index) => {
-    const admissionNo = String(row[0] || "").trim();
-    const markValue = String(row[5] || "").trim();
-    const student = db.students.find((item) => item.admissionNo === admissionNo);
     const rowNumber = index + 2;
+    const classText = String(row[3] || "").trim();
+    const streamText = String(row[4] || "").trim();
+    const admissionNo = String(row[6] || "").trim();
+    const markValue = String(row[8] || "").trim();
+    const student = db.students.find((item) => item.admissionNo === admissionNo);
     if (!student) return errors.push(errorRow(rowNumber, admissionNo, "Missing Student", "Admission number does not exist"));
-    if (student.classId !== classId) return errors.push(errorRow(rowNumber, admissionNo, "Wrong Class", `Learner is not in ${classInfo.name}`));
-    if (seen.has(admissionNo)) return errors.push(errorRow(rowNumber, admissionNo, "Duplicate Mark", "This learner appears twice in the file"));
+    if (student.classId !== context.classId || classText !== els.marksClassLevelSelect.value || streamText !== els.marksStreamSelect.value) return errors.push(errorRow(rowNumber, admissionNo, "Wrong Class/Stream", "Learner is not in the selected class and stream"));
+    if (seen.has(admissionNo)) return errors.push(errorRow(rowNumber, admissionNo, "Duplicate Mark", "Learner appears twice in the file"));
     if (markValue === "") return errors.push(errorRow(rowNumber, admissionNo, "Missing Mark", "Mark is required"));
     const score = Number(markValue);
-    if (!Number.isFinite(score)) return errors.push(errorRow(rowNumber, admissionNo, "Invalid Mark", "Mark must be numeric"));
-    if (score > 100) return errors.push(errorRow(rowNumber, admissionNo, "Mark Above 100", "Mark cannot exceed 100"));
-    if (score < 0) return errors.push(errorRow(rowNumber, admissionNo, "Mark Below 0", "Mark cannot be below 0"));
+    if (!Number.isFinite(score) || score < 0 || score > 100) return errors.push(errorRow(rowNumber, admissionNo, "Mark Range", "Mark must be between 0 and 100"));
     seen.add(admissionNo);
-    marks.push({ studentId: student.id, subjectId, score, status: "Captured" });
+    marks.push({ rowNumber, studentId: student.id, admissionNo, score });
   });
+  if (!isTeacherAssigned(context.teacherId, context.classId, context.subjectId)) {
+    errors.push(errorRow("-", "-", "Teacher Assignment", "Teacher is not assigned to this class, stream and subject"));
+  }
   latestUploadErrors = errors;
   renderUploadErrors();
-  if (errors.length) {
-    toast(`${errors.length} upload error(s) found`);
-    return;
+  if (errors.length) return toast(`${errors.length} upload error(s) found`);
+  try {
+    await api("/api/marks", { method: "POST", body: JSON.stringify({ ...context, marks }) });
+    latestUploadErrors = [];
+    els.csvInput.value = "";
+    toast(`Imported ${marks.length} marks`);
+    await loadData();
+  } catch (error) {
+    latestUploadErrors = error.payload?.errors || [];
+    renderUploadErrors();
+    toast(`${latestUploadErrors.length || 1} server validation issue(s) found`);
   }
-  await api("/api/marks", { method: "POST", body: JSON.stringify({ marks, subjectName: subject.name }) });
-  toast(`Imported ${marks.length} marks`);
-  els.csvInput.value = "";
+}
+
+function downloadErrorReport() {
+  const errors = latestUploadErrors.length ? latestUploadErrors : results.uploadErrors;
+  const lines = ["Row,Admission Number,Error Type,Error Message,Timestamp"];
+  for (const error of errors) lines.push([error.rowNumber || "", error.admissionNo || "", error.errorType, error.errorMessage, error.timestamp || ""].map(csvCell).join(","));
+  downloadText("marks_upload_error_report.csv", lines.join("\n"));
+}
+
+async function saveDeadline(event) {
+  event.preventDefault();
+  const body = Object.fromEntries(new FormData(els.deadlineForm).entries());
+  body.classId = classIdFrom(body.classLevel, body.stream);
+  await api("/api/deadlines", { method: "POST", body: JSON.stringify(body) });
+  toast("Deadline saved");
   await loadData();
 }
 
-function errorRow(rowNumber, admissionNo, errorType, errorMessage) {
-  return { rowNumber, admissionNo, errorType, errorMessage, timestamp: new Date().toISOString() };
+async function approvePromotion() {
+  await api("/api/promotions", { method: "POST", body: JSON.stringify({ approvedBy: "Head Teacher" }) });
+  toast("Promotion approved and history saved");
+  await loadData();
 }
 
 function viewStudentReport() {
@@ -417,6 +580,60 @@ function printClassReports() {
   document.body.classList.remove("print-student");
   document.body.classList.add("print-class");
   window.print();
+}
+
+function marksContext() {
+  return {
+    academicYear: els.marksAcademicYearSelect.value,
+    term: els.marksTermSelect.value,
+    examType: els.marksExamTypeSelect.value,
+    classId: currentMarksClassId(),
+    subjectId: els.subjectSelect.value,
+    teacherId: els.marksTeacherSelect.value
+  };
+}
+
+function currentMarksClassId() {
+  return classIdFrom(els.marksClassLevelSelect.value || "P6", els.marksStreamSelect.value || "East");
+}
+
+function classIdFrom(level, stream) {
+  return `${String(level).toLowerCase()}-${String(stream).toLowerCase()}`;
+}
+
+function assignedTeacherId(classId, subjectId) {
+  return db?.teacherAssignments?.find((item) => item.classId === classId && item.subjectId === subjectId && item.active !== false)?.teacherId || "";
+}
+
+function isTeacherAssigned(teacherId, classId, subjectId) {
+  return db.teacherAssignments.some((item) => item.teacherId === teacherId && item.classId === classId && item.subjectId === subjectId && item.active !== false);
+}
+
+function reportClassesWithCounts() {
+  return db.classes.map((classInfo) => ({ ...classInfo, count: results.students.filter((student) => student.classId === classInfo.id).length }));
+}
+
+function selectedReportClassStudents() {
+  return results.students
+    .filter((student) => student.classId === selectedReportClassId)
+    .sort((a, b) => a.classPosition - b.classPosition || a.name.localeCompare(b.name));
+}
+
+function classById(id) {
+  return db.classes.find((item) => item.id === id);
+}
+
+function subjectById(id) {
+  return db.subjects.find((item) => item.id === id);
+}
+
+function teacherById(id) {
+  return db.teachers.find((item) => item.id === id);
+}
+
+function setValue(id, value) {
+  const element = document.getElementById(id);
+  if (element) element.value = value || "";
 }
 
 function parseCsv(text) {
@@ -454,7 +671,7 @@ function downloadText(filename, content) {
 }
 
 function csvCell(value) {
-  return `"${String(value).replaceAll('"', '""')}"`;
+  return `"${String(value ?? "").replaceAll('"', '""')}"`;
 }
 
 function valueOrDash(value) {
@@ -462,14 +679,18 @@ function valueOrDash(value) {
 }
 
 function promotionClass(value) {
-  if (value === "PROMOTED") return "pill-green";
-  if (value === "REPEAT") return "pill-red";
+  if (value === "PROMOTED" || value === "complete") return "pill-green";
+  if (value === "REPEAT" || value === "late") return "pill-red";
   return "pill-orange";
 }
 
 function formatDate(value) {
   if (!value) return "-";
   return new Date(value).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+}
+
+function errorRow(rowNumber, admissionNo, errorType, errorMessage) {
+  return { rowNumber, admissionNo, errorType, errorMessage, timestamp: new Date().toISOString() };
 }
 
 function toast(message) {
@@ -497,23 +718,25 @@ document.querySelectorAll(".nav-button").forEach((button) => {
   });
 });
 
-els.studentForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const body = Object.fromEntries(new FormData(els.studentForm).entries());
-  await api("/api/students", { method: "POST", body: JSON.stringify(body) });
-  els.studentForm.reset();
-  toast("Student added");
-  await loadData();
-});
-
-els.marksClassSelect.addEventListener("change", renderMarksEntry);
-els.subjectSelect.addEventListener("change", renderMarksEntry);
+els.schoolProfileForm.addEventListener("submit", saveSchoolProfile);
+els.studentForm.addEventListener("submit", saveStudent);
+[
+  els.marksAcademicYearSelect,
+  els.marksTermSelect,
+  els.marksExamTypeSelect,
+  els.marksClassLevelSelect,
+  els.marksStreamSelect,
+  els.subjectSelect
+].forEach((element) => element.addEventListener("change", renderMarksEntry));
 els.saveMarksBtn.addEventListener("click", saveMarks);
 els.downloadTemplateBtn.addEventListener("click", downloadCsvTemplate);
+els.downloadErrorsBtn.addEventListener("click", downloadErrorReport);
 els.csvInput.addEventListener("change", (event) => {
   const file = event.target.files[0];
   if (file) importCsv(file).catch((error) => toast(error.message));
 });
+els.deadlineForm.addEventListener("submit", saveDeadline);
+els.approvePromotionBtn.addEventListener("click", approvePromotion);
 document.getElementById("refreshBtn").addEventListener("click", loadData);
 document.getElementById("printBtn").addEventListener("click", () => {
   document.querySelector('[data-view="reports"]').click();
