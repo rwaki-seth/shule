@@ -5,7 +5,7 @@ const DATA_VERSION = 3;
 const LOCAL_DATA_DIR = path.join(__dirname, "..", "..", "data");
 const DB_PATH = process.env.SHULE_DB_PATH || (process.env.VERCEL ? path.join("/tmp", "shule-mvp2-db.json") : path.join(LOCAL_DATA_DIR, "shule-mvp2-db.json"));
 const SUPABASE_URL = (process.env.SUPABASE_URL || "").replace(/\/$/, "");
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || "";
+const SUPABASE_KEY = readSupabaseKey();
 
 const STUDENT_STATUSES = ["Active", "Graduated", "Transferred", "Suspended", "Expelled", "Dropped Out", "Deceased", "Inactive"];
 const ROLES = ["Super Admin", "School Admin", "Head Teacher", "DOS", "Class Teacher", "Subject Teacher", "Viewer"];
@@ -797,14 +797,17 @@ async function supabasePost(table, rows) {
 }
 
 async function supabaseRequest(pathname, options = {}) {
+  const headers = {
+    apikey: SUPABASE_KEY,
+    "Content-Type": "application/json",
+    ...(options.headers || {})
+  };
+  if (!isModernSupabaseKey(SUPABASE_KEY)) {
+    headers.Authorization = `Bearer ${SUPABASE_KEY}`;
+  }
   const response = await fetch(`${SUPABASE_URL}/rest/v1/${pathname}`, {
     method: options.method || "GET",
-    headers: {
-      apikey: SUPABASE_KEY,
-      Authorization: `Bearer ${SUPABASE_KEY}`,
-      "Content-Type": "application/json",
-      ...(options.headers || {})
-    },
+    headers,
     body: options.body
   });
   if (!response.ok) {
@@ -814,6 +817,25 @@ async function supabaseRequest(pathname, options = {}) {
   if (response.status === 204) return [];
   const text = await response.text();
   return text ? JSON.parse(text) : [];
+}
+
+function readSupabaseKey() {
+  const directKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || "";
+  if (directKey.trim()) return directKey.trim();
+
+  const secretKeys = (process.env.SUPABASE_SECRET_KEYS || "").trim();
+  if (!secretKeys) return "";
+
+  try {
+    const parsed = JSON.parse(secretKeys);
+    return String(parsed.default || Object.values(parsed)[0] || "").trim();
+  } catch (_error) {
+    return secretKeys;
+  }
+}
+
+function isModernSupabaseKey(key) {
+  return key.startsWith("sb_secret_") || key.startsWith("sb_publishable_");
 }
 
 function academicYearRow(item) {
