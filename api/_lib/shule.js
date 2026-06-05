@@ -4,7 +4,7 @@ const path = require("path");
 const DATA_VERSION = 3;
 const LOCAL_DATA_DIR = path.join(__dirname, "..", "..", "data");
 const DB_PATH = process.env.SHULE_DB_PATH || (process.env.VERCEL ? path.join("/tmp", "shule-mvp2-db.json") : path.join(LOCAL_DATA_DIR, "shule-mvp2-db.json"));
-const SUPABASE_URL = (process.env.SUPABASE_URL || "").replace(/\/$/, "");
+const SUPABASE_URL = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "");
 const SUPABASE_KEY = readSupabaseKey();
 let activeStorageMode = supabaseConfigured() ? "supabase" : "json";
 let lastStorageError = "";
@@ -89,7 +89,7 @@ function seedData() {
       shortName: "MJA",
       motto: "HEAD - HEART - HAND",
       academicYear: "2026",
-      term: "Term 1",
+      term: "Term II",
       exam: "End of Term",
       address: "Salaama Munyonyo Road, Plot 42 and 43, Kampala",
       phone: "+256 700 000 000",
@@ -102,9 +102,9 @@ function seedData() {
       { id: "2025", name: "2025", startDate: "2025-02-03", endDate: "2025-12-05", active: false }
     ],
     terms: [
-      { id: "term-1", name: "Term 1", academicYearId: "2026", active: true },
-      { id: "term-2", name: "Term 2", academicYearId: "2026", active: false },
-      { id: "term-3", name: "Term 3", academicYearId: "2026", active: false }
+      { id: "term-1", name: "Term I", academicYearId: "2026", active: false },
+      { id: "term-2", name: "Term II", academicYearId: "2026", active: true },
+      { id: "term-3", name: "Term III", academicYearId: "2026", active: false }
     ],
     examTypes: [
       { id: "bot", name: "Beginning of Term", weight: 20, active: true },
@@ -157,7 +157,7 @@ function seedData() {
     },
     activities: ["Debate", "Football", "Music", "Scouts"],
     audit: [
-      audit("Director of Studies", "Generated demo reports", "-", "MJA Term 1 reports"),
+      audit("Director of Studies", "Generated demo reports", "-", "MJA Term II reports"),
       audit("School Admin", "Seeded MVP2 setup", "-", "tblStudent-compatible student structure")
     ],
     promotionHistory: []
@@ -185,7 +185,8 @@ function buildStudentsFromTblStudent() {
     ["MJA-1203", "TUSHABE NICKSON", "", "", "P6", "Blue", "", "", ""],
     ["MJA-1204", "SSEKAMATTE FRANCIS", "", "", "P6", "Red", "", "", ""],
     ["MJA-1205", "NYINOMUGISHA PATIENCE", "", "", "P6", "Yellow", "", "", ""],
-    ["MJA-1206", "KAYEMBA CALVIN", "", "", "P6", "Green", "", "", ""]
+    ["MJA-1206", "KAYEMBA CALVIN", "", "", "P6", "Green", "", "", ""],
+    ["MJA-1207", "Tusiime Charles Bradwell", "Male", "2013-05-17", "P6", "Blue", "Mr. Tusiime", "+256700120700", ""]
   ];
   return rows.map((row, index) => studentFromTbl(row, index));
 }
@@ -237,7 +238,7 @@ function buildMarks(students) {
         subjectId: subject.id,
         classId: student.classId,
         academicYear: "2026",
-        term: "Term 1",
+        term: "Term II",
         examType: "End of Term",
         teacherId: teacherForSubject(subject.id),
         bot: missing ? null : Math.max(0, score - 7),
@@ -261,7 +262,7 @@ function buildDeadlines() {
       rows.push({
         id: `${classId}-${subjectId}-end`,
         academicYear: "2026",
-        term: "Term 1",
+        term: "Term II",
         examType: "End of Term",
         classId,
         subjectId,
@@ -284,7 +285,7 @@ function assignment(teacherId, classId, subjectId) {
 }
 
 function uploadBatch(id, teacherId, classId, subjectId, status, rows, validRows, errorRows, uploadedAt) {
-  return { id, teacherId, classId, subjectId, academicYear: "2026", term: "Term 1", examType: "End of Term", status, rows, validRows, errorRows, uploadedAt };
+  return { id, teacherId, classId, subjectId, academicYear: "2026", term: "Term II", examType: "End of Term", status, rows, validRows, errorRows, uploadedAt };
 }
 
 function teacherForSubject(subjectId) {
@@ -778,8 +779,14 @@ async function readSupabaseDb() {
   db.activities = metaRows[0]?.data?.activities || fallback.activities;
 
   for (const [prop, table] of COLLECTIONS) {
-    const rows = await supabaseGet(table, "select=data");
+    const rows = await supabaseGetTable(table, "select=data");
     db[prop] = rows.map((row) => row.data);
+  }
+  if (needsDemoSeed(db)) {
+    const seeded = seedData();
+    seeded.audit.push(audit("System", "Reseeded Supabase demo data", "-", "Core Shule tables were empty"));
+    await writeSupabaseDb(seeded);
+    return seeded;
   }
   return db;
 }
@@ -819,6 +826,15 @@ async function supabaseGet(table, query) {
   return supabaseRequest(`${table}?${query}`);
 }
 
+async function supabaseGetTable(table, query) {
+  try {
+    return await supabaseGet(table, query);
+  } catch (error) {
+    console.error(`Supabase table fetch failed for ${table}: ${sanitizeStorageError(error.message)}`);
+    throw error;
+  }
+}
+
 async function supabaseDelete(table, query) {
   return supabaseRequest(`${table}?${query}`, { method: "DELETE" });
 }
@@ -855,7 +871,11 @@ async function supabaseRequest(pathname, options = {}) {
 }
 
 function readSupabaseKey() {
-  const directKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || "";
+  const directKey = process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SECRET_KEY ||
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    "";
   if (directKey.trim()) return directKey.trim();
 
   const secretKeys = (process.env.SUPABASE_SECRET_KEYS || "").trim();
@@ -885,6 +905,15 @@ function sanitizeStorageError(message) {
   return String(message || "Unknown storage error")
     .replace(/eyJ[A-Za-z0-9._-]+/g, "[redacted-jwt]")
     .replace(/sb_(secret|publishable)_[A-Za-z0-9._-]+/g, "sb_$1_[redacted]");
+}
+
+function needsDemoSeed(db) {
+  return !db.students?.length ||
+    !db.subjects?.length ||
+    !db.classes?.length ||
+    !db.streams?.length ||
+    !db.teachers?.length ||
+    !db.gradingScale?.length;
 }
 
 function academicYearRow(item) {

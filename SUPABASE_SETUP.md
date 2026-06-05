@@ -22,6 +22,8 @@ SUPABASE_SERVICE_ROLE_KEY=your-server-side-service-role-key
 
 You may also use `SUPABASE_SECRET_KEY` instead of `SUPABASE_SERVICE_ROLE_KEY` if Supabase gives you the newer secret key format.
 
+The app also recognizes `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` for read-only/demo compatibility, but server-side seeding and uploads require the service/secret key.
+
 Do not put the service role or secret key in browser code, screenshots, GitHub, or chat.
 
 ## 3. Redeploy
@@ -55,3 +57,5 @@ supabase/repair-schema.sql
 ```
 
 This is safe to rerun. It adds missing Shule tables, columns, indexes, and RLS settings without deleting data.
+
+The repair script also adds demo public read policies for the Shule table equivalents of schools, academic years, terms, classes, streams, students, subjects, teachers, grading scales, exam/assessment types, and marks.

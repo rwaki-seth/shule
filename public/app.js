@@ -4,6 +4,7 @@ let selectedReportClassId = null;
 let selectedReportStudentId = null;
 let reportMode = "student";
 let latestUploadErrors = [];
+let connectionStatus = { configured: false, mode: "checking", lastError: "" };
 
 const STATUS_OPTIONS = ["Active", "Graduated", "Transferred", "Suspended", "Expelled", "Dropped Out", "Deceased", "Inactive"];
 
@@ -15,6 +16,9 @@ const els = {
   metricSubjects: document.getElementById("metricSubjects"),
   metricCompletion: document.getElementById("metricCompletion"),
   metricAverage: document.getElementById("metricAverage"),
+  connectionPanel: document.getElementById("connectionPanel"),
+  connectionStatusLabel: document.getElementById("connectionStatusLabel"),
+  connectionStatusDetail: document.getElementById("connectionStatusDetail"),
   rankingBody: document.getElementById("rankingBody"),
   schoolProfileForm: document.getElementById("schoolProfileForm"),
   studentForm: document.getElementById("studentForm"),
@@ -74,15 +78,24 @@ async function api(path, options = {}) {
   if (!response.ok) {
     const error = new Error(payload.error || "Request failed");
     error.payload = payload;
+    console.error("API request failed", path, payload);
     throw error;
   }
   return payload;
 }
 
 async function loadData() {
-  db = await api("/api/bootstrap");
-  results = await api("/api/results");
-  renderAll();
+  try {
+    db = await api("/api/bootstrap");
+    results = await api("/api/results");
+    connectionStatus = await api("/api/storage-status");
+    renderAll();
+  } catch (error) {
+    console.error("Shule data load failed", error);
+    connectionStatus = { configured: false, mode: "failed", lastError: error.message || "Unable to load school data" };
+    renderConnectionStatus();
+    toast(`Connection failed: ${connectionStatus.lastError}`);
+  }
 }
 
 function renderAll() {
@@ -180,6 +193,7 @@ function setOptions(element, html, selectedValue) {
 }
 
 function renderDashboard() {
+  renderConnectionStatus();
   els.metricStudents.textContent = results.counts.activeStudents;
   els.metricSubjects.textContent = results.counts.subjects;
   els.metricCompletion.textContent = `${results.monitoring.completionRate}%`;
@@ -196,6 +210,19 @@ function renderDashboard() {
       <td><span class="pill ${promotionClass(student.promotion)}">${student.promotion}</span></td>
     </tr>
   `).join("");
+}
+
+function renderConnectionStatus() {
+  if (!els.connectionPanel) return;
+  const connected = connectionStatus.mode === "supabase";
+  const localMode = connectionStatus.mode === "json" && !connectionStatus.configured;
+  els.connectionStatusLabel.textContent = connected ? "Connected" : localMode ? "Local JSON" : "Failed";
+  els.connectionStatusDetail.textContent = connected
+    ? "Supabase storage is active"
+    : connectionStatus.lastError || "Supabase is not currently serving data";
+  els.connectionPanel.classList.toggle("status-connected", connected);
+  els.connectionPanel.classList.toggle("status-failed", !connected && !localMode);
+  els.connectionPanel.classList.toggle("status-pending", !connected && localMode);
 }
 
 function renderStudents() {

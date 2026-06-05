@@ -228,6 +228,38 @@ h2 {
   gap: 16px;
 }
 
+.connection-panel {
+  border: 1px solid var(--line);
+  border-left: 6px solid var(--orange);
+  border-radius: 8px;
+  background: var(--white);
+  padding: 14px 16px;
+  box-shadow: var(--shadow);
+}
+
+.connection-panel strong,
+.connection-panel span {
+  display: block;
+}
+
+.connection-panel strong {
+  color: var(--ink);
+}
+
+.connection-panel span:last-child {
+  margin-top: 4px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.connection-panel.status-connected {
+  border-left-color: var(--success);
+}
+
+.connection-panel.status-failed {
+  border-left-color: var(--red);
+}
+
 .metric,
 .panel,
 .deadline-card,

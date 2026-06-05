@@ -207,3 +207,37 @@ alter table public.shule_upload_batches enable row level security;
 alter table public.shule_upload_errors enable row level security;
 alter table public.shule_audit_logs enable row level security;
 alter table public.shule_promotion_history enable row level security;
+
+do $$
+declare
+  v_table text;
+  policy_name text;
+begin
+  foreach v_table in array array[
+    'shule_school_profile',
+    'shule_academic_years',
+    'shule_terms',
+    'shule_class_levels',
+    'shule_classes',
+    'shule_streams',
+    'shule_students',
+    'shule_subjects',
+    'shule_teachers',
+    'shule_grading_scale',
+    'shule_exam_types',
+    'shule_marks'
+  ] loop
+    policy_name := 'demo_public_read_' || v_table;
+    if exists (
+      select 1 from information_schema.tables
+      where table_schema = 'public' and table_name = v_table
+    ) and not exists (
+      select 1 from pg_policies
+      where schemaname = 'public'
+        and tablename = v_table
+        and policyname = policy_name
+    ) then
+      execute format('create policy %I on public.%I for select to anon, authenticated using (true)', policy_name, v_table);
+    end if;
+  end loop;
+end $$;
