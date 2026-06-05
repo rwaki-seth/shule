@@ -7,6 +7,7 @@ const DB_PATH = process.env.SHULE_DB_PATH || (process.env.VERCEL ? path.join("/t
 const SUPABASE_URL = (process.env.SUPABASE_URL || "").replace(/\/$/, "");
 const SUPABASE_KEY = readSupabaseKey();
 let activeStorageMode = supabaseConfigured() ? "supabase" : "json";
+let lastStorageError = "";
 
 const STUDENT_STATUSES = ["Active", "Graduated", "Transferred", "Suspended", "Expelled", "Dropped Out", "Deceased", "Inactive"];
 const ROLES = ["Super Admin", "School Admin", "Head Teacher", "DOS", "Class Teacher", "Subject Teacher", "Viewer"];
@@ -691,10 +692,12 @@ async function loadDb() {
     try {
       const db = await readSupabaseDb();
       activeStorageMode = "supabase";
+      lastStorageError = "";
       return db;
     } catch (error) {
       activeStorageMode = "json";
-      console.error(`Supabase read failed; using JSON fallback. ${error.message}`);
+      lastStorageError = sanitizeStorageError(error.message);
+      console.error(`Supabase read failed; using JSON fallback. ${lastStorageError}`);
     }
   }
   return readDb();
@@ -705,10 +708,12 @@ async function saveDb(data) {
     try {
       const db = await writeSupabaseDb(data);
       activeStorageMode = "supabase";
+      lastStorageError = "";
       return db;
     } catch (error) {
       activeStorageMode = "json";
-      console.error(`Supabase write failed; using JSON fallback. ${error.message}`);
+      lastStorageError = sanitizeStorageError(error.message);
+      console.error(`Supabase write failed; using JSON fallback. ${lastStorageError}`);
     }
   }
   writeDb(data);
@@ -717,6 +722,17 @@ async function saveDb(data) {
 
 function storageMode() {
   return activeStorageMode;
+}
+
+function storageStatus() {
+  return {
+    configured: supabaseConfigured(),
+    mode: activeStorageMode,
+    supabaseUrlConfigured: Boolean(SUPABASE_URL),
+    keyConfigured: Boolean(SUPABASE_KEY),
+    keyType: supabaseKeyType(SUPABASE_KEY),
+    lastError: lastStorageError
+  };
 }
 
 const COLLECTIONS = [
@@ -857,6 +873,20 @@ function isModernSupabaseKey(key) {
   return key.startsWith("sb_secret_") || key.startsWith("sb_publishable_");
 }
 
+function supabaseKeyType(key) {
+  if (!key) return "missing";
+  if (key.startsWith("sb_secret_")) return "secret";
+  if (key.startsWith("sb_publishable_")) return "publishable";
+  if (key.startsWith("eyJ")) return "legacy-jwt";
+  return "unknown";
+}
+
+function sanitizeStorageError(message) {
+  return String(message || "Unknown storage error")
+    .replace(/eyJ[A-Za-z0-9._-]+/g, "[redacted-jwt]")
+    .replace(/sb_(secret|publishable)_[A-Za-z0-9._-]+/g, "sb_$1_[redacted]");
+}
+
 function academicYearRow(item) {
   return { id: item.id, name: item.name, active: Boolean(item.active), data: item, updated_at: new Date().toISOString() };
 }
@@ -970,6 +1000,7 @@ module.exports = {
   sendError,
   sendJson,
   storageMode,
+  storageStatus,
   upsertMark,
   validateMarks,
   writeDb
