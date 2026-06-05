@@ -1,17 +1,18 @@
 :root {
-  --primary: #0a4d9c;
-  --secondary: #1f6fd5;
-  --gold: #f4b400;
-  --light-gold: #ffd54f;
+  --primary: #540f35;
+  --secondary: #7a164b;
+  --navy: #002749;
+  --gold: #fcb900;
+  --light-gold: #ffd84d;
   --white: #ffffff;
   --bg: #f5f7fa;
   --ink: #1f2937;
   --muted: #667085;
   --line: #d9e2ef;
   --success: #16a34a;
-  --orange: #f59e0b;
+  --orange: #ff6900;
   --red: #dc2626;
-  --shadow: 0 14px 35px rgba(10, 77, 156, 0.1);
+  --shadow: 0 14px 35px rgba(84, 15, 53, 0.12);
 }
 
 * {
@@ -29,7 +30,7 @@ body {
 }
 
 .sidebar {
-  background: linear-gradient(180deg, var(--primary), #072f61);
+  background: linear-gradient(180deg, var(--primary), #3f0a29);
   color: var(--white);
   padding: 24px 18px;
 }
@@ -47,7 +48,7 @@ body {
   display: grid;
   place-items: center;
   background: var(--gold);
-  color: #10233f;
+  color: var(--navy);
   border-radius: 14px;
   font-weight: 900;
   letter-spacing: 0;
@@ -59,7 +60,7 @@ body {
 }
 
 .brand span {
-  color: #d7e6ff;
+  color: #ffe8a6;
   margin-top: 4px;
   font-size: 13px;
 }
@@ -81,18 +82,18 @@ button {
 }
 
 button:hover {
-  background: #083e7e;
+  background: #3f0a29;
 }
 
 button.secondary {
-  background: #eaf2ff;
+  background: #fff6df;
   color: var(--primary);
 }
 
 .nav-button {
   text-align: left;
   background: transparent;
-  color: #e5efff;
+  color: #fff2c4;
 }
 
 .nav-button.active,
@@ -168,8 +169,8 @@ h2 {
   padding: 28px;
   color: var(--white);
   background:
-    linear-gradient(135deg, rgba(10, 77, 156, 0.96), rgba(31, 111, 213, 0.86)),
-    radial-gradient(circle at 85% 20%, rgba(244, 180, 0, 0.35), transparent 30%);
+    linear-gradient(135deg, rgba(84, 15, 53, 0.98), rgba(63, 10, 41, 0.92)),
+    radial-gradient(circle at 85% 20%, rgba(252, 185, 0, 0.38), transparent 30%);
   border-radius: 8px;
   box-shadow: var(--shadow);
 }
@@ -185,7 +186,7 @@ h2 {
 
 .hero-band p {
   max-width: 780px;
-  color: #edf5ff;
+  color: #fff3cf;
 }
 
 .seal {
@@ -196,7 +197,7 @@ h2 {
   place-items: center;
   text-align: center;
   background: var(--gold);
-  color: #10233f;
+  color: var(--navy);
   font-weight: 900;
   box-shadow: inset 0 0 0 8px rgba(255, 255, 255, 0.28);
 }
@@ -407,7 +408,7 @@ th {
 .bar-track {
   height: 12px;
   border-radius: 999px;
-  background: #e7eef8;
+  background: #f2e6ee;
   overflow: hidden;
 }
 
@@ -441,7 +442,7 @@ th {
   position: absolute;
   right: 28px;
   top: 120px;
-  color: rgba(10, 77, 156, 0.05);
+  color: rgba(84, 15, 53, 0.05);
   font-size: 150px;
   font-weight: 900;
   pointer-events: none;
@@ -560,7 +561,7 @@ th {
   align-items: end;
   gap: 18px;
   padding: 18px;
-  background: #f4f8ff;
+  background: #fff6df;
   border-radius: 8px;
 }
 
@@ -577,7 +578,7 @@ th {
   border-radius: 999px;
   display: grid;
   place-items: center;
-  background: conic-gradient(var(--primary) calc(var(--value) * 1%), #e7eef8 0);
+  background: conic-gradient(var(--primary) calc(var(--value) * 1%), #f2e6ee 0);
   color: var(--primary);
   font-size: 28px;
   font-weight: 900;
