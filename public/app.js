@@ -1,5 +1,6 @@
 let db = null;
 let results = null;
+let selectedReportClassId = null;
 let selectedReportStudentId = null;
 let reportMode = "student";
 let latestUploadErrors = [];
@@ -36,6 +37,7 @@ const els = {
   auditBody: document.getElementById("auditBody"),
   subjectBars: document.getElementById("subjectBars"),
   reportModeLabel: document.getElementById("reportModeLabel"),
+  reportClassSelect: document.getElementById("reportClassSelect"),
   reportStudentSelect: document.getElementById("reportStudentSelect"),
   viewStudentReportBtn: document.getElementById("viewStudentReportBtn"),
   printStudentReportBtn: document.getElementById("printStudentReportBtn"),
@@ -182,15 +184,63 @@ function renderAnalytics() {
 }
 
 function renderReportSelect() {
-  if (!selectedReportStudentId && results.students.length) selectedReportStudentId = results.students[0].id;
-  els.reportStudentSelect.innerHTML = results.students.map((student) => `<option value="${student.id}">${student.position}. ${escapeHtml(student.name)} (${escapeHtml(student.admissionNo)})</option>`).join("");
+  const classes = reportClassesWithCounts();
+  const firstClassWithLearners = classes.find((item) => item.count > 0) || classes[0];
+  if (!selectedReportClassId || !classes.some((item) => item.id === selectedReportClassId)) {
+    selectedReportClassId = firstClassWithLearners?.id || "";
+  }
+
+  els.reportClassSelect.innerHTML = classes.map((item) => `
+    <option value="${item.id}" ${item.count ? "" : "disabled"}>
+      ${escapeHtml(item.name)} (${item.count} learner${item.count === 1 ? "" : "s"})
+    </option>
+  `).join("");
+  els.reportClassSelect.value = selectedReportClassId;
+
+  const classStudents = selectedReportClassStudents();
+  if (!classStudents.some((student) => student.id === selectedReportStudentId)) {
+    selectedReportStudentId = classStudents[0]?.id || null;
+  }
+
+  els.reportStudentSelect.innerHTML = classStudents.length
+    ? classStudents.map((student) => `<option value="${student.id}">${student.classPosition}. ${escapeHtml(student.name)} (${escapeHtml(student.admissionNo)})</option>`).join("")
+    : `<option value="">No active learners in this class</option>`;
   if (selectedReportStudentId) els.reportStudentSelect.value = selectedReportStudentId;
+
+  const disabled = classStudents.length === 0;
+  els.reportStudentSelect.disabled = disabled;
+  els.viewStudentReportBtn.disabled = disabled;
+  els.printStudentReportBtn.disabled = disabled;
+  els.printClassReportsBtn.disabled = disabled;
 }
 
 function renderReports() {
-  const students = reportMode === "class" ? results.students : results.students.filter((student) => student.id === selectedReportStudentId);
-  els.reportModeLabel.textContent = reportMode === "class" ? "Class reports: one learner per printed packet" : "Individual report preview";
-  els.reportCards.innerHTML = students.map(renderReportPacket).join("");
+  const classStudents = selectedReportClassStudents();
+  const classInfo = db.classes.find((item) => item.id === selectedReportClassId);
+  const className = classInfo?.name || "Selected class";
+  const students = reportMode === "class"
+    ? classStudents
+    : classStudents.filter((student) => student.id === selectedReportStudentId);
+
+  els.reportModeLabel.textContent = reportMode === "class"
+    ? `${className} reports: one learner per printed packet`
+    : `Individual report preview: ${className}`;
+  els.reportCards.innerHTML = students.length
+    ? students.map(renderReportPacket).join("")
+    : `<div class="empty-state">Select a class with active learners to preview and print reports.</div>`;
+}
+
+function reportClassesWithCounts() {
+  return db.classes.map((classInfo) => ({
+    ...classInfo,
+    count: results.students.filter((student) => student.classId === classInfo.id).length
+  }));
+}
+
+function selectedReportClassStudents() {
+  return results.students
+    .filter((student) => student.classId === selectedReportClassId)
+    .sort((a, b) => a.classPosition - b.classPosition || a.name.localeCompare(b.name));
 }
 
 function renderReportPacket(student) {
@@ -353,6 +403,7 @@ function viewStudentReport() {
 }
 
 function printStudentReport() {
+  if (!selectedReportClassStudents().length) return toast("Select a class with learners first");
   viewStudentReport();
   document.body.classList.remove("print-class");
   document.body.classList.add("print-student");
@@ -360,6 +411,7 @@ function printStudentReport() {
 }
 
 function printClassReports() {
+  if (!selectedReportClassStudents().length) return toast("Select a class with learners first");
   reportMode = "class";
   renderReports();
   document.body.classList.remove("print-student");
@@ -468,6 +520,13 @@ document.getElementById("printBtn").addEventListener("click", () => {
   printClassReports();
 });
 els.reportStudentSelect.addEventListener("change", viewStudentReport);
+els.reportClassSelect.addEventListener("change", () => {
+  selectedReportClassId = els.reportClassSelect.value;
+  selectedReportStudentId = null;
+  reportMode = "student";
+  renderReportSelect();
+  renderReports();
+});
 els.viewStudentReportBtn.addEventListener("click", viewStudentReport);
 els.printStudentReportBtn.addEventListener("click", printStudentReport);
 els.printClassReportsBtn.addEventListener("click", printClassReports);
