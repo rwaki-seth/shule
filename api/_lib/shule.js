@@ -4,6 +4,8 @@ const path = require("path");
 const DATA_VERSION = 3;
 const LOCAL_DATA_DIR = path.join(__dirname, "..", "..", "data");
 const DB_PATH = process.env.SHULE_DB_PATH || (process.env.VERCEL ? path.join("/tmp", "shule-mvp2-db.json") : path.join(LOCAL_DATA_DIR, "shule-mvp2-db.json"));
+const SUPABASE_URL = (process.env.SUPABASE_URL || "").replace(/\/$/, "");
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || "";
 
 const STUDENT_STATUSES = ["Active", "Graduated", "Transferred", "Suspended", "Expelled", "Dropped Out", "Deceased", "Inactive"];
 const ROLES = ["Super Admin", "School Admin", "Head Teacher", "DOS", "Class Teacher", "Subject Teacher", "Viewer"];
@@ -679,17 +681,254 @@ function sendError(res, status, message) {
   sendJson(res, status, { error: message });
 }
 
+function supabaseConfigured() {
+  return Boolean(SUPABASE_URL && SUPABASE_KEY);
+}
+
+async function loadDb() {
+  if (supabaseConfigured()) return readSupabaseDb();
+  return readDb();
+}
+
+async function saveDb(data) {
+  if (supabaseConfigured()) return writeSupabaseDb(data);
+  writeDb(data);
+  return data;
+}
+
+function storageMode() {
+  return supabaseConfigured() ? "supabase" : "json";
+}
+
+const COLLECTIONS = [
+  ["academicYears", "shule_academic_years", academicYearRow],
+  ["terms", "shule_terms", termRow],
+  ["examTypes", "shule_exam_types", examTypeRow],
+  ["classLevels", "shule_class_levels", classLevelRow],
+  ["streams", "shule_streams", streamRow],
+  ["classes", "shule_classes", classRow],
+  ["subjects", "shule_subjects", subjectRow],
+  ["teachers", "shule_teachers", teacherRow],
+  ["teacherAssignments", "shule_teacher_assignments", assignmentRow],
+  ["gradingScale", "shule_grading_scale", gradingRow],
+  ["roles", "shule_roles", roleRow],
+  ["promotionHistory", "shule_promotion_history", promotionHistoryRow],
+  ["students", "shule_students", studentRow],
+  ["marks", "shule_marks", markRow],
+  ["deadlines", "shule_deadlines", deadlineRow],
+  ["uploadBatches", "shule_upload_batches", uploadBatchRow],
+  ["uploadErrors", "shule_upload_errors", uploadErrorRow],
+  ["audit", "shule_audit_logs", auditRow]
+];
+
+async function readSupabaseDb() {
+  const settings = await supabaseGet("shule_app_settings", "key=eq.version&select=data&limit=1");
+  const version = settings[0]?.data?.version;
+  if (version !== DATA_VERSION) {
+    const seeded = seedData();
+    await writeSupabaseDb(seeded);
+    return seeded;
+  }
+
+  const db = { version: DATA_VERSION };
+  const [schoolRows, metaRows, promotionRuleRows] = await Promise.all([
+    supabaseGet("shule_school_profile", "select=data&limit=1"),
+    supabaseGet("shule_app_settings", "key=eq.meta&select=data&limit=1"),
+    supabaseGet("shule_promotion_rules", "select=data&limit=1")
+  ]);
+  const fallback = seedData();
+  db.school = schoolRows[0]?.data || fallback.school;
+  db.promotionRules = promotionRuleRows[0]?.data || fallback.promotionRules;
+  db.comments = metaRows[0]?.data?.comments || fallback.comments;
+  db.activities = metaRows[0]?.data?.activities || fallback.activities;
+
+  for (const [prop, table] of COLLECTIONS) {
+    const rows = await supabaseGet(table, "select=data");
+    db[prop] = rows.map((row) => row.data);
+  }
+  return db;
+}
+
+async function writeSupabaseDb(db) {
+  await replaceTable("shule_app_settings", "key", [
+    { key: "version", data: { version: DATA_VERSION }, updated_at: new Date().toISOString() },
+    { key: "meta", data: { comments: db.comments || {}, activities: db.activities || [] }, updated_at: new Date().toISOString() }
+  ]);
+  await replaceTable("shule_school_profile", "id", [{
+    id: "main",
+    name: db.school?.name || "",
+    short_name: db.school?.shortName || "",
+    data: db.school || {},
+    updated_at: new Date().toISOString()
+  }]);
+  await replaceTable("shule_promotion_rules", "id", [{
+    id: db.promotionRules?.id || "default",
+    academic_year: db.promotionRules?.academicYear || db.school?.academicYear || "",
+    status: db.promotionRules?.status || "Draft",
+    data: db.promotionRules || {},
+    updated_at: new Date().toISOString()
+  }]);
+
+  for (const [prop, table, rowFn] of COLLECTIONS) {
+    await replaceTable(table, "id", (db[prop] || []).map((item, index) => rowFn(item, index, db)));
+  }
+  return db;
+}
+
+async function replaceTable(table, idColumn, rows) {
+  await supabaseDelete(table, `${idColumn}=not.is.null`);
+  if (rows.length) await supabasePost(table, rows);
+}
+
+async function supabaseGet(table, query) {
+  return supabaseRequest(`${table}?${query}`);
+}
+
+async function supabaseDelete(table, query) {
+  return supabaseRequest(`${table}?${query}`, { method: "DELETE" });
+}
+
+async function supabasePost(table, rows) {
+  return supabaseRequest(`${table}`, {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify(rows)
+  });
+}
+
+async function supabaseRequest(pathname, options = {}) {
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/${pathname}`, {
+    method: options.method || "GET",
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    },
+    body: options.body
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Supabase ${response.status}: ${text || response.statusText}`);
+  }
+  if (response.status === 204) return [];
+  const text = await response.text();
+  return text ? JSON.parse(text) : [];
+}
+
+function academicYearRow(item) {
+  return { id: item.id, name: item.name, active: Boolean(item.active), data: item, updated_at: new Date().toISOString() };
+}
+
+function termRow(item) {
+  return { id: item.id, name: item.name, academic_year_id: item.academicYearId || "", active: Boolean(item.active), data: item, updated_at: new Date().toISOString() };
+}
+
+function examTypeRow(item) {
+  return { id: item.id, name: item.name, active: item.active !== false, data: item, updated_at: new Date().toISOString() };
+}
+
+function classLevelRow(item) {
+  return { id: item.id, name: item.name, sort_order: item.order || null, active: item.active !== false, data: item, updated_at: new Date().toISOString() };
+}
+
+function streamRow(item) {
+  return { id: item.id, name: item.name, active: item.active !== false, data: item, updated_at: new Date().toISOString() };
+}
+
+function classRow(item) {
+  return { id: item.id, level: item.level, stream: item.stream, name: item.name, active: item.active !== false, data: item, updated_at: new Date().toISOString() };
+}
+
+function subjectRow(item) {
+  return { id: item.id, code: item.code, name: item.name, active: item.active !== false, data: item, updated_at: new Date().toISOString() };
+}
+
+function teacherRow(item) {
+  return { id: item.id, name: item.name, role: item.role || "", email: item.email || "", active: item.active !== false, data: item, updated_at: new Date().toISOString() };
+}
+
+function assignmentRow(item) {
+  return { id: item.id, teacher_id: item.teacherId, class_id: item.classId, subject_id: item.subjectId, active: item.active !== false, data: item, updated_at: new Date().toISOString() };
+}
+
+function gradingRow(item, index) {
+  return { id: item.id || `${item.grade}-${index}`, grade: item.grade, min_score: item.min, max_score: item.max, aggregate: item.aggregate, data: item, updated_at: new Date().toISOString() };
+}
+
+function roleRow(item) {
+  return { id: item.id, name: item.name, active: item.active !== false, data: item, updated_at: new Date().toISOString() };
+}
+
+function promotionHistoryRow(item, index) {
+  return { id: item.id || `promotion-${index}`, academic_year: item.academicYear || "", approved_by: item.approvedBy || "", approved_at: item.approvedAt || null, data: item, updated_at: new Date().toISOString() };
+}
+
+function studentRow(item) {
+  return {
+    id: item.id,
+    student_id: item.studentId || item.admissionNo || "",
+    admission_no: item.admissionNo || "",
+    full_name: item.name || "",
+    class_id: item.classId || "",
+    stream: item.stream || "",
+    status: item.status || "",
+    parent_contact: item.contact || "",
+    data: item,
+    updated_at: new Date().toISOString()
+  };
+}
+
+function markRow(item, index) {
+  const id = item.id || slug(`${item.studentId}-${item.subjectId}-${item.academicYear}-${item.term}-${item.examType}-${index}`);
+  return {
+    id,
+    student_id: item.studentId,
+    subject_id: item.subjectId,
+    class_id: item.classId,
+    academic_year: item.academicYear,
+    term: item.term,
+    exam_type: item.examType,
+    teacher_id: item.teacherId || "",
+    score: item.score,
+    status: item.status || "",
+    data: { ...item, id },
+    updated_at: new Date().toISOString()
+  };
+}
+
+function deadlineRow(item) {
+  return { id: item.id, academic_year: item.academicYear, term: item.term, exam_type: item.examType, class_id: item.classId, subject_id: item.subjectId, teacher_id: item.teacherId || "", due_at: item.dueAt || null, status: item.status || "", data: item, updated_at: new Date().toISOString() };
+}
+
+function uploadBatchRow(item) {
+  return { id: item.id, teacher_id: item.teacherId || "", class_id: item.classId || "", subject_id: item.subjectId || "", status: item.status || "", data: item, updated_at: new Date().toISOString() };
+}
+
+function uploadErrorRow(item, index) {
+  const id = item.id || slug(`${item.batchId || "batch"}-${item.rowNumber || index}-${item.admissionNo || "row"}-${index}`);
+  return { id, batch_id: item.batchId || "", row_number: String(item.rowNumber || ""), admission_no: item.admissionNo || "", error_type: item.errorType || "", data: { ...item, id }, updated_at: new Date().toISOString() };
+}
+
+function auditRow(item, index) {
+  const id = item.id || slug(`${item.timestamp || Date.now()}-${item.action || "audit"}-${index}`);
+  return { id, actor: item.user || "", action: item.action || "", created_at: item.timestamp || new Date().toISOString(), data: { ...item, id } };
+}
+
 module.exports = {
   DATA_VERSION,
   STUDENT_STATUSES,
   approvePromotion,
   audit,
   calculateResults,
+  loadDb,
   readDb,
   addStudent,
   saveDeadline,
+  saveDb,
   sendError,
   sendJson,
+  storageMode,
   upsertMark,
   validateMarks,
   writeDb

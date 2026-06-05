@@ -7,13 +7,14 @@ const {
   approvePromotion,
   audit,
   calculateResults,
-  readDb,
+  loadDb,
+  saveDb,
   saveDeadline,
   sendError,
   sendJson,
+  storageMode,
   upsertMark,
-  validateMarks,
-  writeDb
+  validateMarks
 } = require("./api/_lib/shule");
 
 const PORT = Number(process.env.PORT || 3000);
@@ -51,22 +52,22 @@ function parseBody(req) {
 }
 
 async function handleApi(req, res, pathname) {
-  const db = readDb();
+  const db = await loadDb();
 
-  if (req.method === "GET" && pathname === "/api/bootstrap") return sendJson(res, 200, db);
-  if (req.method === "GET" && pathname === "/api/results") return sendJson(res, 200, calculateResults(db));
+  if (req.method === "GET" && pathname === "/api/bootstrap") return sendJson(res, 200, { ...db, storageMode: storageMode() });
+  if (req.method === "GET" && pathname === "/api/results") return sendJson(res, 200, { ...calculateResults(db), storageMode: storageMode() });
 
   if (req.method === "POST" && pathname === "/api/school") {
     const body = await parseBody(req);
     db.school = { ...db.school, ...body };
     db.audit.push(audit("School Admin", "Updated school profile", "-", db.school.name));
-    writeDb(db);
+    await saveDb(db);
     return sendJson(res, 200, db.school);
   }
 
   if (req.method === "POST" && pathname === "/api/students") {
     const student = addStudent(db, await parseBody(req));
-    writeDb(db);
+    await saveDb(db);
     return sendJson(res, 201, student);
   }
 
@@ -76,7 +77,7 @@ async function handleApi(req, res, pathname) {
     if (errors.length) {
       db.uploadErrors = errors;
       db.audit.push(audit("Subject Teacher", "Rejected marks upload", "-", `${errors.length} validation issue(s)`));
-      writeDb(db);
+      await saveDb(db);
       return sendJson(res, 422, { ok: false, errors });
     }
     for (const mark of body.marks || []) upsertMark(db, {
@@ -104,19 +105,19 @@ async function handleApi(req, res, pathname) {
       uploadedAt: new Date().toISOString()
     });
     db.audit.push(audit("Subject Teacher", "Uploaded marks", "-", `${body.marks.length} mark(s)`));
-    writeDb(db);
+    await saveDb(db);
     return sendJson(res, 200, { ok: true, results: calculateResults(db) });
   }
 
   if (req.method === "POST" && pathname === "/api/deadlines") {
     const deadline = saveDeadline(db, await parseBody(req));
-    writeDb(db);
+    await saveDb(db);
     return sendJson(res, 200, deadline);
   }
 
   if (req.method === "POST" && pathname === "/api/promotions") {
     const history = approvePromotion(db, await parseBody(req));
-    writeDb(db);
+    await saveDb(db);
     return sendJson(res, 200, history);
   }
 
