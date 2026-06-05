@@ -3,22 +3,24 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Shule MVP1</title>
+    <title>Makindye Junior Academy Results</title>
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
     <aside class="sidebar">
       <div class="brand">
-        <div class="brand-mark">S</div>
+        <div class="brand-mark">MJA</div>
         <div>
-          <strong>Shule</strong>
-          <span>Results Manager</span>
+          <strong>Makindye Junior Academy</strong>
+          <span>Head • Heart • Hand</span>
         </div>
       </div>
       <nav>
         <button class="nav-button active" data-view="dashboard">Dashboard</button>
-        <button class="nav-button" data-view="setup">Setup</button>
-        <button class="nav-button" data-view="marks">Marks Entry</button>
+        <button class="nav-button" data-view="students">Students</button>
+        <button class="nav-button" data-view="marks">Marks Upload</button>
+        <button class="nav-button" data-view="monitoring">Monitoring</button>
+        <button class="nav-button" data-view="analytics">Analytics</button>
         <button class="nav-button" data-view="reports">Reports</button>
       </nav>
     </aside>
@@ -26,153 +28,170 @@
     <main class="app-shell">
       <header class="topbar">
         <div>
+          <p class="eyebrow" id="schoolMeta">Loading...</p>
           <h1 id="pageTitle">Dashboard</h1>
-          <p id="schoolMeta">Loading school profile...</p>
         </div>
         <div class="actions">
           <button id="refreshBtn" class="secondary">Refresh</button>
-          <button id="printBtn">Print Reports</button>
+          <button id="printBtn">Print Class Reports</button>
         </div>
       </header>
 
       <section id="dashboard" class="view active">
+        <section class="hero-band">
+          <div>
+            <p class="eyebrow">School Results & Marks Management</p>
+            <h2 id="heroSchool">Makindye Junior Academy</h2>
+            <p>Modern assessment capture, monitoring, analytics, promotions, and parent-ready reporting for Ugandan primary schools.</p>
+          </div>
+          <div class="seal">Verified<br>Reports</div>
+        </section>
+
         <div class="metric-grid">
-          <article class="metric">
-            <span>Students</span>
-            <strong id="metricStudents">0</strong>
-          </article>
-          <article class="metric">
-            <span>Subjects</span>
-            <strong id="metricSubjects">0</strong>
-          </article>
-          <article class="metric">
-            <span>Marks Captured</span>
-            <strong id="metricMarks">0</strong>
-          </article>
-          <article class="metric">
-            <span>Class Average</span>
-            <strong id="metricAverage">0</strong>
-          </article>
+          <article class="metric"><span>Active Learners</span><strong id="metricStudents">0</strong></article>
+          <article class="metric"><span>Subjects</span><strong id="metricSubjects">0</strong></article>
+          <article class="metric"><span>Upload Completion</span><strong id="metricCompletion">0%</strong></article>
+          <article class="metric"><span>Class Average</span><strong id="metricAverage">0</strong></article>
         </div>
 
         <section class="panel">
           <div class="panel-heading">
-            <h2>Class Ranking</h2>
-            <span>Automatically calculated</span>
+            <h2>Overall Ranking</h2>
+            <span>Class and stream positions calculated automatically</span>
           </div>
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Pos</th>
-                  <th>Student</th>
-                  <th>Adm No.</th>
+                  <th>Overall</th>
+                  <th>Learner</th>
+                  <th>Class</th>
+                  <th>Stream</th>
                   <th>Total</th>
                   <th>Average</th>
-                  <th>Grade</th>
-                  <th>Missing</th>
+                  <th>Agg.</th>
+                  <th>Promotion</th>
                 </tr>
               </thead>
               <tbody id="rankingBody"></tbody>
             </table>
           </div>
         </section>
-
-        <section class="panel">
-          <div class="panel-heading">
-            <h2>Subject Statistics</h2>
-            <span>Average, highest, lowest</span>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Subject</th>
-                  <th>Entries</th>
-                  <th>Average</th>
-                  <th>Highest</th>
-                  <th>Lowest</th>
-                </tr>
-              </thead>
-              <tbody id="subjectStatsBody"></tbody>
-            </table>
-          </div>
-        </section>
       </section>
 
-      <section id="setup" class="view">
-        <section class="panel two-col">
-          <form id="schoolForm">
-            <div class="panel-heading">
-              <h2>School Profile</h2>
-              <span>Used on reports</span>
-            </div>
-            <label>School name <input name="name" required></label>
-            <label>Academic year <input name="academicYear" required></label>
-            <label>Term <input name="term" required></label>
-            <label>Exam <input name="exam" required></label>
-            <button type="submit">Save Profile</button>
-          </form>
-
-          <form id="studentForm">
-            <div class="panel-heading">
-              <h2>Add Student</h2>
-              <span>Quick register entry</span>
-            </div>
-            <label>Admission number <input name="admissionNo" required></label>
-            <label>Full name <input name="name" required></label>
-            <label>Gender
-              <select name="gender">
-                <option value="">Not set</option>
-                <option>F</option>
-                <option>M</option>
-              </select>
-            </label>
+      <section id="students" class="view">
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Student Register</h2>
+            <span>Active learners appear in marks entry; inactive records remain historical</span>
+          </div>
+          <form id="studentForm" class="form-grid">
+            <label>Admission Number <input name="admissionNo" required></label>
+            <label>Full Name <input name="name" required></label>
+            <label>Gender <select name="gender"><option>F</option><option>M</option></select></label>
+            <label>Date of Birth <input name="dateOfBirth" type="date"></label>
+            <label>Parent/Guardian <input name="guardian"></label>
+            <label>Parent Contact <input name="contact"></label>
+            <label>Class & Stream <select name="classId" id="studentClassSelect"></select></label>
+            <label>Status <select name="status" id="studentStatusSelect"></select></label>
+            <label>Attendance % <input name="attendance" type="number" min="0" max="100" value="90"></label>
+            <label>Notes <input name="notes"></label>
             <button type="submit">Add Student</button>
           </form>
         </section>
 
         <section class="panel">
           <div class="panel-heading">
-            <h2>Current Students</h2>
-            <span>Master register</span>
+            <h2>Register Overview</h2>
+            <span id="studentCountLabel"></span>
           </div>
-          <div id="studentList" class="chip-list"></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Adm No.</th><th>Name</th><th>Gender</th><th>Class</th><th>Status</th><th>Parent</th><th>Contact</th></tr>
+              </thead>
+              <tbody id="studentRegisterBody"></tbody>
+            </table>
+          </div>
         </section>
       </section>
 
       <section id="marks" class="view">
         <section class="panel">
           <div class="panel-heading">
-            <h2>Teacher Marks Entry</h2>
-            <span>Save subject scores instantly</span>
+            <h2>Teacher Marks Upload</h2>
+            <span>CSV validation checks student, class, stream, subject, score, duplicates, and assignment</span>
           </div>
           <div class="marks-toolbar">
+            <label>Class & Stream <select id="marksClassSelect"></select></label>
             <label>Subject <select id="subjectSelect"></select></label>
-            <label>CSV upload <input id="csvInput" type="file" accept=".csv,text/csv"></label>
+            <label>CSV Upload <input id="csvInput" type="file" accept=".csv,text/csv"></label>
             <button id="downloadTemplateBtn" class="secondary">Download CSV Template</button>
+            <button id="saveMarksBtn">Save Marks</button>
           </div>
           <div class="table-wrap">
             <table>
               <thead>
-                <tr>
-                  <th>Adm No.</th>
-                  <th>Student</th>
-                  <th>Score</th>
-                  <th>Status</th>
-                </tr>
+                <tr><th>Adm No.</th><th>Student</th><th>Class</th><th>Stream</th><th>Mark</th><th>Status</th></tr>
               </thead>
               <tbody id="marksBody"></tbody>
             </table>
           </div>
-          <button id="saveMarksBtn">Save Marks</button>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Upload Validation</h2>
+            <span id="uploadSummary">No file uploaded this session</span>
+          </div>
+          <div id="uploadErrors" class="error-list"></div>
+        </section>
+      </section>
+
+      <section id="monitoring" class="view">
+        <div class="metric-grid">
+          <article class="metric status-complete"><span>Completed Uploads</span><strong id="metricCompleted">0</strong></article>
+          <article class="metric status-pending"><span>Pending Uploads</span><strong id="metricPending">0</strong></article>
+          <article class="metric status-late"><span>Late Uploads</span><strong id="metricLate">0</strong></article>
+          <article class="metric status-late"><span>Validation Failures</span><strong id="metricErrors">0</strong></article>
+        </div>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Deadline Tracker</h2>
+            <span>Green complete, orange pending, red overdue</span>
+          </div>
+          <div class="deadline-grid" id="deadlineGrid"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Audit Trail</h2>
+            <span>Mark uploads, edits, report generation, and approvals</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>User</th><th>Action</th><th>Timestamp</th><th>New Value</th></tr></thead>
+              <tbody id="auditBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section id="analytics" class="view">
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Subject Statistics</h2>
+            <span>Average, highest, lowest, and entries</span>
+          </div>
+          <div id="subjectBars" class="bar-list"></div>
         </section>
       </section>
 
       <section id="reports" class="view">
         <section class="panel">
           <div class="panel-heading">
-            <h2>Student Report Cards</h2>
+            <h2>Premium Report Cards</h2>
             <span id="reportModeLabel">Individual report preview</span>
           </div>
           <div class="report-toolbar">
@@ -181,7 +200,7 @@
             <button id="printStudentReportBtn">Print Student</button>
             <button id="printClassReportsBtn">Print Class Reports</button>
           </div>
-          <div id="reportCards" class="report-grid"></div>
+          <div id="reportCards" class="report-stack"></div>
         </section>
       </section>
     </main>
