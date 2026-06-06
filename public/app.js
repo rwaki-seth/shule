@@ -19,6 +19,10 @@ const els = {
   connectionPanel: document.getElementById("connectionPanel"),
   connectionStatusLabel: document.getElementById("connectionStatusLabel"),
   connectionStatusDetail: document.getElementById("connectionStatusDetail"),
+  connectionUrlStatus: document.getElementById("connectionUrlStatus"),
+  connectionTablesStatus: document.getElementById("connectionTablesStatus"),
+  connectionRecordCount: document.getElementById("connectionRecordCount"),
+  connectionFetchTime: document.getElementById("connectionFetchTime"),
   rankingBody: document.getElementById("rankingBody"),
   schoolProfileForm: document.getElementById("schoolProfileForm"),
   studentForm: document.getElementById("studentForm"),
@@ -65,6 +69,11 @@ const els = {
   viewStudentReportBtn: document.getElementById("viewStudentReportBtn"),
   printStudentReportBtn: document.getElementById("printStudentReportBtn"),
   printClassReportsBtn: document.getElementById("printClassReportsBtn"),
+  mobileReportDownloadBtn: document.getElementById("mobileReportDownloadBtn"),
+  mobileMoreSheet: document.getElementById("mobileMoreSheet"),
+  mobileSheetBackdrop: document.getElementById("mobileSheetBackdrop"),
+  moreNavButton: document.getElementById("moreNavButton"),
+  closeMoreSheet: document.getElementById("closeMoreSheet"),
   reportCards: document.getElementById("reportCards"),
   toast: document.getElementById("toast")
 };
@@ -111,6 +120,7 @@ function renderAll() {
   renderAnalytics();
   renderReportSelect();
   renderReports();
+  decorateMobileTables();
 }
 
 function renderSchoolMeta() {
@@ -217,12 +227,54 @@ function renderConnectionStatus() {
   const connected = connectionStatus.mode === "supabase";
   const localMode = connectionStatus.mode === "json" && !connectionStatus.configured;
   els.connectionStatusLabel.textContent = connected ? "Connected" : localMode ? "Local JSON" : "Failed";
+  els.connectionUrlStatus.textContent = connectionStatus.supabaseUrlConfigured ? "Yes" : "No";
+  els.connectionTablesStatus.textContent = connectionStatus.tablesReachable ? "Yes" : "No";
+  els.connectionRecordCount.textContent = connectionStatus.checkedTables
+    ? Object.values(connectionStatus.checkedTables).reduce((sum, count) => sum + Number(count || 0), 0)
+    : 0;
+  els.connectionFetchTime.textContent = connectionStatus.lastFetchAt ? formatDate(connectionStatus.lastFetchAt) : "-";
   els.connectionStatusDetail.textContent = connected
-    ? "Supabase storage is active"
+    ? "None"
     : connectionStatus.lastError || "Supabase is not currently serving data";
   els.connectionPanel.classList.toggle("status-connected", connected);
   els.connectionPanel.classList.toggle("status-failed", !connected && !localMode);
   els.connectionPanel.classList.toggle("status-pending", !connected && localMode);
+}
+
+function decorateMobileTables() {
+  document.querySelectorAll(".table-wrap table:not(.report-table)").forEach((table) => {
+    const labels = [...table.querySelectorAll("thead th")].map((cell) => cell.textContent.trim());
+    table.querySelectorAll("tbody tr").forEach((row) => {
+      [...row.children].forEach((cell, index) => {
+        if (cell.tagName === "TD") cell.dataset.label = labels[index] || "";
+      });
+    });
+  });
+}
+
+function navigateTo(viewName, label) {
+  document.querySelectorAll(".view").forEach((item) => item.classList.remove("active"));
+  document.getElementById(viewName)?.classList.add("active");
+  document.querySelectorAll(".nav-button, .mobile-nav-button, .mobile-more-button").forEach((item) => {
+    item.classList.toggle("active", item.dataset.view === viewName);
+  });
+  const secondaryView = ["setup", "monitoring", "promotion", "analytics"].includes(viewName);
+  els.moreNavButton?.classList.toggle("active", secondaryView);
+  els.pageTitle.textContent = label || document.querySelector(`[data-view="${viewName}"]`)?.textContent.trim() || viewName;
+  closeMobileMoreSheet();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function openMobileMoreSheet() {
+  els.mobileMoreSheet?.classList.add("open");
+  els.mobileSheetBackdrop?.classList.add("open");
+  els.mobileMoreSheet?.setAttribute("aria-hidden", "false");
+}
+
+function closeMobileMoreSheet() {
+  els.mobileMoreSheet?.classList.remove("open");
+  els.mobileSheetBackdrop?.classList.remove("open");
+  els.mobileMoreSheet?.setAttribute("aria-hidden", "true");
 }
 
 function renderStudents() {
@@ -268,6 +320,7 @@ function renderMarksEntry() {
       </tr>
     `;
   }).join("") : `<tr><td colspan="6">No active learners for this class and stream.</td></tr>`;
+  decorateMobileTables();
 }
 
 function renderUploadErrors() {
@@ -410,10 +463,12 @@ function renderReportPageOne(student) {
         <div><span>Attendance</span><strong>${student.attendance}%</strong></div>
         <div><span>Status</span><strong>${escapeHtml(student.status)}</strong></div>
       </section>
-      <table class="report-table">
-        <thead><tr><th>Subject</th><th>BOT</th><th>Mid</th><th>End</th><th>Final</th><th>Grade</th><th>Agg.</th><th>Comment</th></tr></thead>
-        <tbody>${student.subjects.map((subject) => `<tr><td>${escapeHtml(subject.subjectName)}</td><td>${valueOrDash(subject.bot)}</td><td>${valueOrDash(subject.mid)}</td><td>${valueOrDash(subject.end)}</td><td>${valueOrDash(subject.score)}</td><td>${subject.grade}</td><td>${valueOrDash(subject.aggregate)}</td><td>${escapeHtml(subject.comment)}</td></tr>`).join("")}</tbody>
-      </table>
+      <div class="report-table-scroll">
+        <table class="report-table">
+          <thead><tr><th>Subject</th><th>BOT</th><th>Mid</th><th>End</th><th>Final</th><th>Grade</th><th>Agg.</th><th>Comment</th></tr></thead>
+          <tbody>${student.subjects.map((subject) => `<tr><td>${escapeHtml(subject.subjectName)}</td><td>${valueOrDash(subject.bot)}</td><td>${valueOrDash(subject.mid)}</td><td>${valueOrDash(subject.end)}</td><td>${valueOrDash(subject.score)}</td><td>${subject.grade}</td><td>${valueOrDash(subject.aggregate)}</td><td>${escapeHtml(subject.comment)}</td></tr>`).join("")}</tbody>
+        </table>
+      </div>
       <section class="kpi-strip">
         <div><span>Total Marks</span><strong>${student.total}</strong></div>
         <div><span>Average</span><strong>${student.average}</strong></div>
@@ -454,10 +509,12 @@ function renderReportPageThree(student) {
         <div><h3>Student Conduct</h3><p>${escapeHtml(student.conduct)}</p></div>
       </div>
       <h3 class="matrix-heading">Grading Matrix</h3>
-      <table class="report-table grading-matrix">
-        <thead><tr><th>Grade</th><th>Range</th><th>Aggregate</th><th>Comment</th></tr></thead>
-        <tbody>${db.gradingScale.map((row) => `<tr><td>${row.grade}</td><td>${row.min}-${row.max}</td><td>${row.aggregate}</td><td>${escapeHtml(row.comment)}</td></tr>`).join("")}</tbody>
-      </table>
+      <div class="report-table-scroll">
+        <table class="report-table grading-matrix">
+          <thead><tr><th>Grade</th><th>Range</th><th>Aggregate</th><th>Comment</th></tr></thead>
+          <tbody>${db.gradingScale.map((row) => `<tr><td>${row.grade}</td><td>${row.min}-${row.max}</td><td>${row.aggregate}</td><td>${escapeHtml(row.comment)}</td></tr>`).join("")}</tbody>
+        </table>
+      </div>
       <section class="signature-grid">
         <div>Class Teacher Signature</div>
         <div>Head Teacher Signature</div>
@@ -735,15 +792,14 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-document.querySelectorAll(".nav-button").forEach((button) => {
+document.querySelectorAll(".nav-button, .mobile-nav-button[data-view], .mobile-more-button").forEach((button) => {
   button.addEventListener("click", () => {
-    document.querySelectorAll(".nav-button").forEach((item) => item.classList.remove("active"));
-    document.querySelectorAll(".view").forEach((item) => item.classList.remove("active"));
-    button.classList.add("active");
-    document.getElementById(button.dataset.view).classList.add("active");
-    els.pageTitle.textContent = button.textContent;
+    navigateTo(button.dataset.view, button.textContent.trim());
   });
 });
+els.moreNavButton.addEventListener("click", openMobileMoreSheet);
+els.closeMoreSheet.addEventListener("click", closeMobileMoreSheet);
+els.mobileSheetBackdrop.addEventListener("click", closeMobileMoreSheet);
 
 els.schoolProfileForm.addEventListener("submit", saveSchoolProfile);
 els.studentForm.addEventListener("submit", saveStudent);
@@ -780,6 +836,7 @@ els.reportClassSelect.addEventListener("change", () => {
 els.viewStudentReportBtn.addEventListener("click", viewStudentReport);
 els.printStudentReportBtn.addEventListener("click", printStudentReport);
 els.printClassReportsBtn.addEventListener("click", printClassReports);
+els.mobileReportDownloadBtn.addEventListener("click", printStudentReport);
 window.addEventListener("afterprint", () => {
   document.body.classList.remove("print-class", "print-student");
   reportMode = "student";

@@ -241,3 +241,57 @@ begin
     end if;
   end loop;
 end $$;
+
+do $$
+begin
+  if to_regclass('public.schools') is null then
+    execute 'create view public.schools with (security_invoker = true) as select id, name, short_name, data, updated_at from public.shule_school_profile';
+  end if;
+  if to_regclass('public.academic_years') is null then
+    execute 'create view public.academic_years with (security_invoker = true) as select id, name, active, data, updated_at from public.shule_academic_years';
+  end if;
+  if to_regclass('public.terms') is null then
+    execute 'create view public.terms with (security_invoker = true) as select id, name, academic_year_id, active, data, updated_at from public.shule_terms';
+  end if;
+  if to_regclass('public.classes') is null then
+    execute 'create view public.classes with (security_invoker = true) as select id, level, stream, name, active, data, updated_at from public.shule_classes';
+  end if;
+  if to_regclass('public.streams') is null then
+    execute 'create view public.streams with (security_invoker = true) as select id, name, active, data, updated_at from public.shule_streams';
+  end if;
+  if to_regclass('public.students') is null then
+    execute 'create view public.students with (security_invoker = true) as select id, student_id, admission_no, full_name, class_id, stream, status, parent_contact, data, updated_at from public.shule_students';
+  end if;
+  if to_regclass('public.subjects') is null then
+    execute 'create view public.subjects with (security_invoker = true) as select id, code, name, active, data, updated_at from public.shule_subjects';
+  end if;
+  if to_regclass('public.teachers') is null then
+    execute 'create view public.teachers with (security_invoker = true) as select id, name, role, email, active, data, updated_at from public.shule_teachers';
+  end if;
+  if to_regclass('public.teacher_subject_assignments') is null then
+    execute 'create view public.teacher_subject_assignments with (security_invoker = true) as select id, teacher_id, class_id, subject_id, active, data, updated_at from public.shule_teacher_assignments';
+  end if;
+  if to_regclass('public.grading_scales') is null then
+    execute 'create view public.grading_scales with (security_invoker = true) as select id, grade, min_score, max_score, aggregate, data, updated_at from public.shule_grading_scale';
+  end if;
+  if to_regclass('public.assessments') is null then
+    execute 'create view public.assessments with (security_invoker = true) as select id, name, active, data, updated_at from public.shule_exam_types';
+  end if;
+  if to_regclass('public.marks') is null then
+    execute 'create view public.marks with (security_invoker = true) as select id, student_id, subject_id, class_id, academic_year, term, exam_type, teacher_id, score, status, data, updated_at from public.shule_marks';
+  end if;
+end $$;
+
+grant select on public.schools,
+  public.academic_years,
+  public.terms,
+  public.classes,
+  public.streams,
+  public.students,
+  public.subjects,
+  public.teachers,
+  public.teacher_subject_assignments,
+  public.grading_scales,
+  public.assessments,
+  public.marks
+to anon, authenticated;

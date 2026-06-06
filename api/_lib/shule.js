@@ -8,6 +8,8 @@ const SUPABASE_URL = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABA
 const SUPABASE_KEY = readSupabaseKey();
 let activeStorageMode = supabaseConfigured() ? "supabase" : "json";
 let lastStorageError = "";
+let lastStorageFetchAt = "";
+let lastTableCounts = {};
 
 const STUDENT_STATUSES = ["Active", "Graduated", "Transferred", "Suspended", "Expelled", "Dropped Out", "Deceased", "Inactive"];
 const ROLES = ["Super Admin", "School Admin", "Head Teacher", "DOS", "Class Teacher", "Subject Teacher", "Viewer"];
@@ -677,6 +679,7 @@ function errorRow(rowNumber, admissionNo, errorType, errorMessage, batchId = "")
 function sendJson(res, status, payload) {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store, max-age=0");
   res.end(JSON.stringify(payload));
 }
 
@@ -694,6 +697,7 @@ async function loadDb() {
       const db = await readSupabaseDb();
       activeStorageMode = "supabase";
       lastStorageError = "";
+      lastStorageFetchAt = new Date().toISOString();
       return db;
     } catch (error) {
       activeStorageMode = "json";
@@ -732,6 +736,9 @@ function storageStatus() {
     supabaseUrlConfigured: Boolean(SUPABASE_URL),
     keyConfigured: Boolean(SUPABASE_KEY),
     keyType: supabaseKeyType(SUPABASE_KEY),
+    tablesReachable: activeStorageMode === "supabase" && !lastStorageError,
+    checkedTables: lastTableCounts,
+    lastFetchAt: lastStorageFetchAt,
     lastError: lastStorageError
   };
 }
@@ -763,6 +770,7 @@ async function readSupabaseDb() {
   if (version !== DATA_VERSION) {
     const seeded = seedData();
     await writeSupabaseDb(seeded);
+    lastTableCounts = coreTableCounts(seeded);
     return seeded;
   }
 
@@ -782,10 +790,12 @@ async function readSupabaseDb() {
     const rows = await supabaseGetTable(table, "select=data");
     db[prop] = rows.map((row) => row.data);
   }
+  lastTableCounts = coreTableCounts(db);
   if (needsDemoSeed(db)) {
     const seeded = seedData();
     seeded.audit.push(audit("System", "Reseeded Supabase demo data", "-", "Core Shule tables were empty"));
     await writeSupabaseDb(seeded);
+    lastTableCounts = coreTableCounts(seeded);
     return seeded;
   }
   return db;
@@ -914,6 +924,23 @@ function needsDemoSeed(db) {
     !db.streams?.length ||
     !db.teachers?.length ||
     !db.gradingScale?.length;
+}
+
+function coreTableCounts(db) {
+  return {
+    schools: db.school ? 1 : 0,
+    academicYears: db.academicYears?.length || 0,
+    terms: db.terms?.length || 0,
+    classes: db.classes?.length || 0,
+    streams: db.streams?.length || 0,
+    students: db.students?.length || 0,
+    subjects: db.subjects?.length || 0,
+    teachers: db.teachers?.length || 0,
+    teacherAssignments: db.teacherAssignments?.length || 0,
+    gradingScales: db.gradingScale?.length || 0,
+    assessments: db.examTypes?.length || 0,
+    marks: db.marks?.length || 0
+  };
 }
 
 function academicYearRow(item) {

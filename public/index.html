@@ -29,7 +29,14 @@
 
     <main class="app-shell">
       <header class="topbar">
-        <div>
+        <div class="mobile-school-brand">
+          <div class="mobile-brand-mark">MJA</div>
+          <div>
+            <strong>Makindye Junior Academy</strong>
+            <span>Head - Heart - Hand</span>
+          </div>
+        </div>
+        <div class="page-heading">
           <p class="eyebrow" id="schoolMeta">Loading...</p>
           <h1 id="pageTitle">Dashboard</h1>
         </div>
@@ -50,10 +57,17 @@
         </section>
 
         <section class="connection-panel status-pending" id="connectionPanel">
-          <div>
-            <strong>Connection Status: <span id="connectionStatusLabel">Checking</span></strong>
-            <span id="connectionStatusDetail">Verifying Supabase storage</span>
+          <div class="connection-heading">
+            <strong>Supabase Connection</strong>
+            <span class="connection-badge" id="connectionStatusLabel">Checking</span>
           </div>
+          <div class="connection-grid">
+            <div><span>Supabase URL detected</span><strong id="connectionUrlStatus">Checking</strong></div>
+            <div><span>Tables reachable</span><strong id="connectionTablesStatus">Checking</strong></div>
+            <div><span>Records loaded</span><strong id="connectionRecordCount">0</strong></div>
+            <div><span>Last successful fetch</span><strong id="connectionFetchTime">-</strong></div>
+          </div>
+          <div class="connection-error"><span>Last fetch error</span><strong id="connectionStatusDetail">None</strong></div>
         </section>
 
         <div class="metric-grid">
@@ -164,6 +178,12 @@
       </section>
 
       <section id="marks" class="view">
+        <div class="mobile-stepper" aria-label="Marks upload steps">
+          <div><strong>1</strong><span>Select context</span></div>
+          <div><strong>2</strong><span>Get template</span></div>
+          <div><strong>3</strong><span>Upload CSV</span></div>
+          <div><strong>4</strong><span>Review</span></div>
+        </div>
         <section class="panel">
           <div class="panel-heading">
             <h2>Teacher Marks Upload</h2>
@@ -314,8 +334,31 @@
           </div>
           <div id="reportCards" class="report-stack"></div>
         </section>
+        <button id="mobileReportDownloadBtn" class="mobile-report-action">Download PDF</button>
       </section>
     </main>
+
+    <nav class="mobile-bottom-nav" aria-label="Primary navigation">
+      <button class="mobile-nav-button active" data-view="dashboard"><span>Home</span></button>
+      <button class="mobile-nav-button" data-view="students"><span>Students</span></button>
+      <button class="mobile-nav-button" data-view="marks"><span>Marks</span></button>
+      <button class="mobile-nav-button" data-view="reports"><span>Reports</span></button>
+      <button class="mobile-nav-button" id="moreNavButton" type="button"><span>More</span></button>
+    </nav>
+
+    <div class="mobile-sheet-backdrop" id="mobileSheetBackdrop"></div>
+    <aside class="mobile-more-sheet" id="mobileMoreSheet" aria-hidden="true">
+      <div class="mobile-sheet-heading">
+        <div><strong>More modules</strong><span>Administration and performance tools</span></div>
+        <button id="closeMoreSheet" type="button" aria-label="Close menu">Close</button>
+      </div>
+      <div class="mobile-more-grid">
+        <button class="mobile-more-button" data-view="setup">Setup</button>
+        <button class="mobile-more-button" data-view="monitoring">Monitoring</button>
+        <button class="mobile-more-button" data-view="promotion">Promotion</button>
+        <button class="mobile-more-button" data-view="analytics">Analytics</button>
+      </div>
+    </aside>
 
     <div id="toast" role="status"></div>
     <script src="/app.js"></script>
