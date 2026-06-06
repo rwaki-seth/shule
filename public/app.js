@@ -2,8 +2,10 @@ let db = null;
 let results = null;
 let selectedReportClassId = null;
 let selectedReportStudentId = null;
+let selectedProfileStudentId = null;
 let reportMode = "student";
 let latestUploadErrors = [];
+let latestStudentImportErrors = [];
 let connectionStatus = { configured: false, mode: "checking", lastError: "" };
 
 const STATUS_OPTIONS = ["Active", "Graduated", "Transferred", "Suspended", "Expelled", "Dropped Out", "Deceased", "Inactive"];
@@ -29,8 +31,19 @@ const els = {
   studentClassLevelSelect: document.getElementById("studentClassLevelSelect"),
   studentStreamSelect: document.getElementById("studentStreamSelect"),
   studentStatusSelect: document.getElementById("studentStatusSelect"),
+  importClassLevelSelect: document.getElementById("importClassLevelSelect"),
+  importStreamSelect: document.getElementById("importStreamSelect"),
+  studentCsvInput: document.getElementById("studentCsvInput"),
+  downloadStudentTemplateBtn: document.getElementById("downloadStudentTemplateBtn"),
+  downloadStudentErrorsBtn: document.getElementById("downloadStudentErrorsBtn"),
+  studentImportSummary: document.getElementById("studentImportSummary"),
+  studentImportErrors: document.getElementById("studentImportErrors"),
+  newStudentPhotoInput: document.getElementById("newStudentPhotoInput"),
   studentCountLabel: document.getElementById("studentCountLabel"),
   studentRegisterBody: document.getElementById("studentRegisterBody"),
+  studentProfileContent: document.getElementById("studentProfileContent"),
+  backToStudentsBtn: document.getElementById("backToStudentsBtn"),
+  studentProfileReportBtn: document.getElementById("studentProfileReportBtn"),
   marksAcademicYearSelect: document.getElementById("marksAcademicYearSelect"),
   marksTermSelect: document.getElementById("marksTermSelect"),
   marksExamTypeSelect: document.getElementById("marksExamTypeSelect"),
@@ -99,6 +112,7 @@ async function loadData() {
     results = await api("/api/results");
     connectionStatus = await api("/api/storage-status");
     renderAll();
+    applyUrlRoute();
   } catch (error) {
     console.error("Shule data load failed", error);
     connectionStatus = { configured: false, mode: "failed", lastError: error.message || "Unable to load school data" };
@@ -113,6 +127,8 @@ function renderAll() {
   renderSelects();
   renderDashboard();
   renderStudents();
+  renderStudentImportErrors();
+  renderStudentProfile();
   renderMarksEntry();
   renderUploadErrors();
   renderMonitoring();
@@ -172,6 +188,8 @@ function renderSelects() {
 
   setOptions(els.studentClassLevelSelect, levels, "P6");
   setOptions(els.studentStreamSelect, streams, "East");
+  setOptions(els.importClassLevelSelect, levels, "P6");
+  setOptions(els.importStreamSelect, streams, "East");
   els.studentStatusSelect.innerHTML = STATUS_OPTIONS.map((status) => `<option>${status}</option>`).join("");
 
   setOptions(els.marksAcademicYearSelect, years, db.school.academicYear);
@@ -253,10 +271,14 @@ function decorateMobileTables() {
 }
 
 function navigateTo(viewName, label) {
+  if (viewName !== "studentProfile" && window.location.hash.startsWith("#student/")) {
+    window.history.replaceState(null, "", `#${viewName}`);
+  }
   document.querySelectorAll(".view").forEach((item) => item.classList.remove("active"));
   document.getElementById(viewName)?.classList.add("active");
+  const navigationView = viewName === "studentProfile" ? "students" : viewName;
   document.querySelectorAll(".nav-button, .mobile-nav-button, .mobile-more-button").forEach((item) => {
-    item.classList.toggle("active", item.dataset.view === viewName);
+    item.classList.toggle("active", item.dataset.view === navigationView);
   });
   const secondaryView = ["setup", "monitoring", "promotion", "analytics"].includes(viewName);
   els.moreNavButton?.classList.toggle("active", secondaryView);
@@ -282,9 +304,9 @@ function renderStudents() {
   els.studentRegisterBody.innerHTML = db.students.map((student) => {
     const classInfo = classById(student.classId) || {};
     return `
-      <tr>
+      <tr class="student-register-row" data-student-id="${escapeHtml(student.id)}">
         <td>${escapeHtml(student.studentId || student.admissionNo)}</td>
-        <td>${escapeHtml(student.name)}<br><span>${escapeHtml(student.admissionNo)}</span></td>
+        <td><strong>${escapeHtml(student.name)}</strong><br><span>${escapeHtml(student.admissionNo)}</span></td>
         <td>${escapeHtml(student.gender)}</td>
         <td>${escapeHtml(classInfo.level || student.classLevel || "")}</td>
         <td>${escapeHtml(classInfo.stream || student.stream || "")}</td>
@@ -292,9 +314,70 @@ function renderStudents() {
         <td><span class="pill ${student.status === "Active" ? "pill-green" : "pill-muted"}">${escapeHtml(student.status)}</span></td>
         <td>${escapeHtml(student.guardian || "-")}</td>
         <td>${escapeHtml(student.contact || "-")}</td>
+        <td><button type="button" class="secondary student-view-button" data-student-id="${escapeHtml(student.id)}">View</button></td>
       </tr>
     `;
   }).join("");
+  decorateMobileTables();
+}
+
+function renderStudentProfile() {
+  if (!els.studentProfileContent) return;
+  const student = db?.students?.find((item) => item.id === selectedProfileStudentId);
+  if (!student) {
+    els.studentProfileContent.innerHTML = `<section class="panel empty-state">Choose a student from the register to view their profile.</section>`;
+    return;
+  }
+  const classInfo = classById(student.classId) || {};
+  const academic = results?.students?.find((item) => item.id === student.id);
+  const initials = student.name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+  const detailRows = [
+    ["Student ID", student.studentId || student.admissionNo],
+    ["Admission Number", student.admissionNo],
+    ["Full Name", student.name],
+    ["Gender", student.gender || "-"],
+    ["Date of Birth", student.dateOfBirth || "-"],
+    ["Class", classInfo.level || student.classLevel || "-"],
+    ["Stream", classInfo.stream || student.stream || "-"],
+    ["House", student.house || "-"],
+    ["Status", student.status || "-"],
+    ["Admission Date", student.admissionDate || "-"],
+    ["Parent / Guardian", student.guardian || "-"],
+    ["Parent Contact", student.contact || "-"],
+    ["Attendance", `${Number(student.attendance || 0)}%`],
+    ["Conduct", student.conduct || "-"]
+  ];
+  els.studentProfileContent.innerHTML = `
+    <section class="student-profile-hero">
+      <div class="student-profile-photo">
+        ${student.photo ? `<img src="${escapeHtml(student.photo)}" alt="${escapeHtml(student.name)}">` : `<span>${escapeHtml(initials || "ST")}</span>`}
+      </div>
+      <div class="student-profile-identity">
+        <span class="eyebrow">${escapeHtml(student.admissionNo)}</span>
+        <h2>${escapeHtml(student.name)}</h2>
+        <p>${escapeHtml(classInfo.name || `${student.classLevel} ${student.stream}`)} · ${escapeHtml(student.status)}</p>
+        <label class="profile-photo-upload">Replace Student Photo
+          <input id="profilePhotoInput" type="file" accept="image/*">
+        </label>
+      </div>
+      <div class="student-profile-academic">
+        <div><span>Average</span><strong>${academic?.average ?? "-"}</strong></div>
+        <div><span>Class Position</span><strong>${academic?.classPosition ?? "-"}</strong></div>
+        <div><span>Attendance</span><strong>${Number(student.attendance || 0)}%</strong></div>
+      </div>
+    </section>
+    <section class="profile-detail-band">
+      <h3>Student Details</h3>
+      <div class="student-detail-grid">
+        ${detailRows.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}
+      </div>
+    </section>
+    <section class="profile-notes-band">
+      <div><h3>Administrative Notes</h3><p>${escapeHtml(student.notes || "No notes recorded.")}</p></div>
+      <div><h3>Competencies</h3><div class="competency-list">${Object.entries(student.competencies || {}).map(([label, value]) => `<span>${escapeHtml(label)} <strong>${escapeHtml(value)}/5</strong></span>`).join("")}</div></div>
+    </section>
+  `;
+  document.getElementById("profilePhotoInput")?.addEventListener("change", updateProfilePhoto);
 }
 
 function renderMarksEntry() {
@@ -544,10 +627,167 @@ async function saveStudent(event) {
   const body = Object.fromEntries(new FormData(els.studentForm).entries());
   body.admissionNo = body.admissionNo || body.studentId;
   body.classId = classIdFrom(body.classLevel, body.stream);
+  const photoFile = els.newStudentPhotoInput.files[0];
+  if (photoFile) body.photo = await compressImage(photoFile);
   await api("/api/students", { method: "POST", body: JSON.stringify(body) });
   els.studentForm.reset();
   toast("Student added");
   await loadData();
+}
+
+function downloadStudentTemplate() {
+  const level = els.importClassLevelSelect.value || "P6";
+  const stream = els.importStreamSelect.value || "East";
+  const headers = ["Admission Number", "Student ID", "Full Name", "Gender", "Date of Birth", "Class", "Stream", "House", "Parent/Guardian", "Parent Contact", "Status", "Admission Date", "Attendance", "Notes"];
+  const example = ["MJA-NEW-001", "MJA-NEW-001", "Student Full Name", "F", "2014-01-31", level, stream, "Blue", "Parent Name", "+256700000000", "Active", new Date().toISOString().slice(0, 10), "90", ""];
+  downloadText(`${level}_${stream}_student_class_list.csv`, [headers, example].map((row) => row.map(csvCell).join(",")).join("\n"));
+}
+
+async function importStudentCsv(file) {
+  const text = await file.text();
+  const rows = parseCsv(text);
+  if (rows.length < 2) throw new Error("The student CSV has no data rows");
+  const headers = rows[0].map(normalizeCsvHeader);
+  const index = Object.fromEntries(headers.map((header, position) => [header, position]));
+  const admissionHeaders = ["admissionnumber", "admissionno", "admno"];
+  const nameHeaders = ["fullname", "studentname", "name"];
+  if (!admissionHeaders.some((header) => index[header] !== undefined) || !nameHeaders.some((header) => index[header] !== undefined)) {
+    throw new Error("CSV must contain Admission Number and Full Name columns");
+  }
+
+  const students = rows.slice(1).map((row, rowIndex) => ({
+    rowNumber: rowIndex + 2,
+    admissionNo: csvValueAny(row, index, admissionHeaders),
+    studentId: csvValueAny(row, index, ["studentid", "id"]) || csvValueAny(row, index, admissionHeaders),
+    name: csvValueAny(row, index, nameHeaders),
+    gender: csvValueAny(row, index, ["gender", "sex"]),
+    dateOfBirth: csvValueAny(row, index, ["dateofbirth", "dob"]),
+    classLevel: csvValueAny(row, index, ["class", "classlevel"]) || els.importClassLevelSelect.value,
+    stream: csvValueAny(row, index, ["stream"]) || els.importStreamSelect.value,
+    house: csvValueAny(row, index, ["house"]),
+    guardian: csvValueAny(row, index, ["parentguardian", "guardian", "parentname"]),
+    contact: csvValueAny(row, index, ["parentcontact", "contact", "phone", "phonenumber"]),
+    status: csvValueAny(row, index, ["status"]) || "Active",
+    admissionDate: csvValueAny(row, index, ["admissiondate", "dateofadmission"]),
+    attendance: csvValueAny(row, index, ["attendance", "attendancepercent"]),
+    notes: csvValueAny(row, index, ["notes", "remarks"])
+  })).filter((student) => [
+    student.admissionNo,
+    student.studentId,
+    student.name,
+    student.gender,
+    student.dateOfBirth,
+    student.guardian,
+    student.contact
+  ].some((value) => String(value || "").trim()));
+
+  try {
+    const result = await api("/api/students", {
+      method: "POST",
+      body: JSON.stringify({
+        action: "import",
+        classLevel: els.importClassLevelSelect.value,
+        stream: els.importStreamSelect.value,
+        students
+      })
+    });
+    latestStudentImportErrors = [];
+    renderStudentImportErrors();
+    els.studentCsvInput.value = "";
+    els.studentImportSummary.textContent = `${result.created} students added, ${result.updated} existing records updated`;
+    toast(`Imported ${result.total} student record(s)`);
+    await loadData();
+  } catch (error) {
+    latestStudentImportErrors = error.payload?.errors || [errorRow("-", "-", "Import Failed", error.message)];
+    renderStudentImportErrors();
+    toast(`${latestStudentImportErrors.length} student import issue(s) found`);
+  }
+}
+
+function renderStudentImportErrors() {
+  const errors = latestStudentImportErrors;
+  els.downloadStudentErrorsBtn.hidden = !errors.length;
+  if (errors.length) els.studentImportSummary.textContent = `${errors.length} issue(s) must be corrected before import`;
+  els.studentImportErrors.innerHTML = errors.map((error) => `
+    <div class="error-item">
+      <strong>${escapeHtml(error.errorType)}</strong>
+      <span>Row ${escapeHtml(error.rowNumber || "-")} | ${escapeHtml(error.admissionNo || "-")} | ${escapeHtml(error.errorMessage)}</span>
+    </div>
+  `).join("");
+}
+
+function downloadStudentErrorReport() {
+  const lines = ["Row,Admission Number,Error Type,Error Message"];
+  for (const error of latestStudentImportErrors) lines.push([error.rowNumber || "", error.admissionNo || "", error.errorType, error.errorMessage].map(csvCell).join(","));
+  downloadText("student_class_list_error_report.csv", lines.join("\n"));
+}
+
+function openStudentProfile(studentId) {
+  selectedProfileStudentId = studentId;
+  renderStudentProfile();
+  window.history.replaceState(null, "", `#student/${encodeURIComponent(studentId)}`);
+  navigateTo("studentProfile", "Student Profile");
+}
+
+async function updateProfilePhoto(event) {
+  const file = event.target.files[0];
+  if (!file || !selectedProfileStudentId) return;
+  try {
+    const photo = await compressImage(file);
+    await api("/api/students", {
+      method: "POST",
+      body: JSON.stringify({ action: "updatePhoto", studentId: selectedProfileStudentId, photo })
+    });
+    toast("Student photo updated");
+    await loadData();
+  } catch (error) {
+    toast(error.message || "Photo upload failed");
+  }
+}
+
+function openProfileAcademicReport() {
+  const student = db.students.find((item) => item.id === selectedProfileStudentId);
+  if (!student) return;
+  selectedReportClassId = student.classId;
+  selectedReportStudentId = student.id;
+  reportMode = "student";
+  renderReportSelect();
+  renderReports();
+  navigateTo("reports", "Reports");
+}
+
+function applyUrlRoute() {
+  const match = window.location.hash.match(/^#student\/(.+)$/);
+  if (!match) return;
+  const studentId = decodeURIComponent(match[1]);
+  if (db.students.some((item) => item.id === studentId)) openStudentProfile(studentId);
+}
+
+function compressImage(file) {
+  if (!file.type.startsWith("image/")) return Promise.reject(new Error("Select a valid image file"));
+  if (file.size > 12_000_000) return Promise.reject(new Error("The original photo must be smaller than 12 MB"));
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Unable to read the selected photo"));
+    reader.onload = () => {
+      const image = new Image();
+      image.onerror = () => reject(new Error("The selected photo could not be opened"));
+      image.onload = () => {
+        const maxSize = 720;
+        const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(image.width * scale));
+        canvas.height = Math.max(1, Math.round(image.height * scale));
+        const context = canvas.getContext("2d");
+        context.fillStyle = "#ffffff";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.78));
+      };
+      image.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 async function saveMarks() {
@@ -744,6 +984,23 @@ function parseCsv(text) {
   });
 }
 
+function normalizeCsvHeader(value) {
+  return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function csvValue(row, index, header) {
+  const position = index[header];
+  return position === undefined ? "" : String(row[position] || "").trim();
+}
+
+function csvValueAny(row, index, headers) {
+  for (const header of headers) {
+    const value = csvValue(row, index, header);
+    if (value !== "") return value;
+  }
+  return "";
+}
+
 function downloadText(filename, content) {
   const blob = new Blob([content], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
@@ -803,6 +1060,21 @@ els.mobileSheetBackdrop.addEventListener("click", closeMobileMoreSheet);
 
 els.schoolProfileForm.addEventListener("submit", saveSchoolProfile);
 els.studentForm.addEventListener("submit", saveStudent);
+els.downloadStudentTemplateBtn.addEventListener("click", downloadStudentTemplate);
+els.downloadStudentErrorsBtn.addEventListener("click", downloadStudentErrorReport);
+els.studentCsvInput.addEventListener("change", (event) => {
+  const file = event.target.files[0];
+  if (file) importStudentCsv(file).catch((error) => toast(error.message));
+});
+els.studentRegisterBody.addEventListener("click", (event) => {
+  const row = event.target.closest("[data-student-id]");
+  if (row) openStudentProfile(row.dataset.studentId);
+});
+els.backToStudentsBtn.addEventListener("click", () => {
+  window.history.replaceState(null, "", "#students");
+  navigateTo("students", "Students");
+});
+els.studentProfileReportBtn.addEventListener("click", openProfileAcademicReport);
 [
   els.marksAcademicYearSelect,
   els.marksTermSelect,

@@ -4,6 +4,7 @@ const path = require("path");
 const { URL } = require("url");
 const {
   addStudent,
+  importStudents,
   approvePromotion,
   audit,
   calculateResults,
@@ -14,6 +15,7 @@ const {
   sendJson,
   storageMode,
   storageStatus,
+  updateStudentPhoto,
   upsertMark,
   validateMarks
 } = require("./api/_lib/shule");
@@ -68,7 +70,19 @@ async function handleApi(req, res, pathname) {
   }
 
   if (req.method === "POST" && pathname === "/api/students") {
-    const student = addStudent(db, await parseBody(req));
+    const body = await parseBody(req);
+    if (body.action === "import") {
+      const result = importStudents(db, body);
+      if (!result.ok) return sendJson(res, 422, result);
+      await saveDb(db);
+      return sendJson(res, 200, result);
+    }
+    if (body.action === "updatePhoto") {
+      const student = updateStudentPhoto(db, body);
+      await saveDb(db);
+      return sendJson(res, 200, student);
+    }
+    const student = addStudent(db, body);
     await saveDb(db);
     return sendJson(res, 201, student);
   }

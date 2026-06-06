@@ -593,10 +593,10 @@ function upsertMark(db, payload) {
   else db.marks.push(row);
 }
 
-function addStudent(db, body) {
+function buildStudentRow(db, body, existing = null) {
   const classId = body.classId || `${String(body.classLevel || "P6").toLowerCase()}-${String(body.stream || "East").toLowerCase()}`;
-  const studentRow = {
-    id: slug(body.studentId || body.admissionNo || `student-${Date.now()}`),
+  return {
+    id: existing?.id || slug(body.studentId || body.admissionNo || `student-${Date.now()}`),
     studentId: String(body.studentId || body.admissionNo || "").trim(),
     admissionNo: String(body.admissionNo || body.studentId || "").trim(),
     name: String(body.name || "").trim(),
@@ -614,14 +614,97 @@ function addStudent(db, body) {
     notes: body.notes || "",
     attendance: Number(body.attendance || 0),
     conduct: body.conduct || "Good",
-    competencies: { Communication: 3, Leadership: 3, Creativity: 3, Discipline: 3, Teamwork: 3, Responsibility: 3 }
+    competencies: existing?.competencies || { Communication: 3, Leadership: 3, Creativity: 3, Discipline: 3, Teamwork: 3, Responsibility: 3 }
   };
+}
+
+function validateStudentRow(db, studentRow, existing = null) {
   if (!studentRow.admissionNo || !studentRow.name) throw new Error("Student ID/admission number and full name are required");
   if (!STUDENT_STATUSES.includes(studentRow.status)) throw new Error("Invalid student status");
-  if (db.students.some((student) => student.admissionNo === studentRow.admissionNo)) throw new Error("Admission number already exists");
+  if (!db.classes.some((item) => item.id === studentRow.classId)) throw new Error(`Class and stream do not exist: ${studentRow.classLevel} ${studentRow.stream}`);
+  if (!existing && db.students.some((student) => student.admissionNo.toLowerCase() === studentRow.admissionNo.toLowerCase())) throw new Error("Admission number already exists");
+}
+
+function addStudent(db, body) {
+  const studentRow = buildStudentRow(db, body);
+  validateStudentRow(db, studentRow);
   db.students.push(studentRow);
   db.audit.push(audit("School Admin", "Created student", "-", studentRow.admissionNo));
   return studentRow;
+}
+
+function importStudents(db, body) {
+  const rows = Array.isArray(body.students) ? body.students : [];
+  if (!rows.length) throw new Error("No student rows were supplied");
+  if (rows.length > 1000) throw new Error("A class-list upload cannot exceed 1,000 students");
+
+  const errors = [];
+  const prepared = [];
+  const seen = new Set();
+
+  rows.forEach((input, index) => {
+    const rowNumber = Number(input.rowNumber || index + 2);
+    const admissionNo = String(input.admissionNo || input.studentId || "").trim();
+    const key = admissionNo.toLowerCase();
+    if (!admissionNo) {
+      errors.push(errorRow(rowNumber, "", "Missing Admission Number", "Admission number is required"));
+      return;
+    }
+    if (seen.has(key)) {
+      errors.push(errorRow(rowNumber, admissionNo, "Duplicate Student", "Admission number appears more than once in the file"));
+      return;
+    }
+    seen.add(key);
+
+    const existing = db.students.find((student) => student.admissionNo.toLowerCase() === key);
+    try {
+      const supplied = Object.fromEntries(Object.entries(input).filter(([field, value]) =>
+        field === "rowNumber" || (value !== null && value !== undefined && String(value).trim() !== "")
+      ));
+      const studentRow = buildStudentRow(db, {
+        ...existing,
+        ...supplied,
+        classLevel: supplied.classLevel || body.classLevel || existing?.classLevel,
+        stream: supplied.stream || body.stream || existing?.stream,
+        classId: supplied.classId || undefined,
+        status: supplied.status || existing?.status || "Active",
+        attendance: supplied.attendance ?? existing?.attendance ?? 0,
+        photo: supplied.photo || existing?.photo || ""
+      }, existing);
+      validateStudentRow(db, studentRow, existing);
+      prepared.push({ existing, studentRow });
+    } catch (error) {
+      errors.push(errorRow(rowNumber, admissionNo, "Invalid Student", error.message));
+    }
+  });
+
+  if (errors.length) return { ok: false, errors, created: 0, updated: 0 };
+
+  let created = 0;
+  let updated = 0;
+  for (const { existing, studentRow } of prepared) {
+    if (existing) {
+      Object.assign(existing, studentRow);
+      updated += 1;
+    } else {
+      db.students.push(studentRow);
+      created += 1;
+    }
+  }
+  db.audit.push(audit("School Admin", "Imported student class list", "-", `${created} created, ${updated} updated`));
+  return { ok: true, errors: [], created, updated, total: prepared.length };
+}
+
+function updateStudentPhoto(db, body) {
+  const student = db.students.find((item) => item.id === body.studentId || item.admissionNo === body.admissionNo);
+  if (!student) throw new Error("Student not found");
+  const photo = String(body.photo || "");
+  if (!photo) throw new Error("Select a photo to upload");
+  if (photo.length > 1_500_000) throw new Error("Photo is too large after compression");
+  if (!photo.startsWith("data:image/") && !/^https?:\/\//i.test(photo)) throw new Error("Photo must be an uploaded image or a valid URL");
+  student.photo = photo;
+  db.audit.push(audit("School Admin", "Updated student photo", "-", student.admissionNo));
+  return student;
 }
 
 function saveDeadline(db, body) {
@@ -1051,12 +1134,14 @@ module.exports = {
   loadDb,
   readDb,
   addStudent,
+  importStudents,
   saveDeadline,
   saveDb,
   sendError,
   sendJson,
   storageMode,
   storageStatus,
+  updateStudentPhoto,
   upsertMark,
   validateMarks,
   writeDb

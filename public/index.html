@@ -136,6 +136,29 @@
       </section>
 
       <section id="students" class="view">
+        <section class="panel student-import-panel">
+          <div class="panel-heading">
+            <div>
+              <h2>Upload Class List</h2>
+              <span>Import new students or update existing records using their admission numbers</span>
+            </div>
+            <button id="downloadStudentTemplateBtn" type="button" class="secondary">Download CSV Template</button>
+          </div>
+          <div class="student-import-grid">
+            <label>Default Class <select id="importClassLevelSelect"></select></label>
+            <label>Default Stream <select id="importStreamSelect"></select></label>
+            <label class="file-drop">Student CSV
+              <input id="studentCsvInput" type="file" accept=".csv,text/csv">
+              <span>Choose the CSV saved from Excel</span>
+            </label>
+          </div>
+          <div class="import-status-row">
+            <span id="studentImportSummary">No class list selected</span>
+            <button id="downloadStudentErrorsBtn" type="button" class="secondary" hidden>Download Error Report</button>
+          </div>
+          <div id="studentImportErrors" class="error-list"></div>
+        </section>
+
         <section class="panel">
           <div class="panel-heading">
             <h2>Student Register</h2>
@@ -152,7 +175,7 @@
             <label>House <input name="house" placeholder="Blue, Red, Yellow..."></label>
             <label>Parent/Guardian <input name="guardian"></label>
             <label>Parent Contact <input name="contact"></label>
-            <label>Photo URL <input name="photo" placeholder="https://..."></label>
+            <label>Student Photo <input id="newStudentPhotoInput" type="file" accept="image/*"></label>
             <label>Status <select name="status" id="studentStatusSelect"></select></label>
             <label>Admission Date <input name="admissionDate" type="date"></label>
             <label>Attendance % <input name="attendance" type="number" min="0" max="100" value="90"></label>
@@ -169,12 +192,20 @@
           <div class="table-wrap">
             <table>
               <thead>
-                <tr><th>Student ID</th><th>Name</th><th>Gender</th><th>Class</th><th>Stream</th><th>House</th><th>Status</th><th>Parent</th><th>Contact</th></tr>
+                <tr><th>Student ID</th><th>Name</th><th>Gender</th><th>Class</th><th>Stream</th><th>House</th><th>Status</th><th>Parent</th><th>Contact</th><th>Profile</th></tr>
               </thead>
               <tbody id="studentRegisterBody"></tbody>
             </table>
           </div>
         </section>
+      </section>
+
+      <section id="studentProfile" class="view">
+        <div class="profile-actions">
+          <button id="backToStudentsBtn" type="button" class="secondary">Back to Students</button>
+          <button id="studentProfileReportBtn" type="button">Open Academic Report</button>
+        </div>
+        <section id="studentProfileContent" class="student-profile-shell"></section>
       </section>
 
       <section id="marks" class="view">

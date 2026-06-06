@@ -389,6 +389,230 @@ select {
   overflow-x: auto;
 }
 
+.student-import-panel .panel-heading {
+  align-items: flex-end;
+}
+
+.student-import-panel .panel-heading > div {
+  display: grid;
+  gap: 4px;
+}
+
+.student-import-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 2fr;
+  gap: 16px;
+  align-items: end;
+}
+
+.file-drop {
+  min-height: 76px;
+  padding: 12px 14px;
+  border: 1px dashed #9ca9ba;
+  background: #f8fafc;
+}
+
+.file-drop input {
+  margin-top: 8px;
+}
+
+.file-drop span {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.import-status-row,
+.profile-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.import-status-row {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.student-register-row {
+  cursor: pointer;
+}
+
+.student-register-row:hover td {
+  background: #fff9e8;
+}
+
+.student-view-button {
+  min-width: 72px;
+  padding: 9px 12px;
+}
+
+.profile-actions {
+  margin-bottom: 16px;
+}
+
+.student-profile-shell {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+
+.student-profile-hero {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr) minmax(280px, auto);
+  gap: 28px;
+  align-items: center;
+  padding: 32px;
+  color: #fff;
+  background: var(--maroon);
+  border-bottom: 6px solid var(--gold);
+}
+
+.student-profile-photo {
+  display: grid;
+  width: 180px;
+  height: 210px;
+  place-items: center;
+  overflow: hidden;
+  border: 3px solid rgba(255, 255, 255, 0.7);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.student-profile-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.student-profile-photo span {
+  font-size: 46px;
+  font-weight: 900;
+}
+
+.student-profile-identity {
+  min-width: 0;
+}
+
+.student-profile-identity h2 {
+  margin: 7px 0;
+  color: #fff;
+  font-size: 34px;
+}
+
+.student-profile-identity p {
+  margin: 0 0 18px;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.profile-photo-upload {
+  display: inline-grid;
+  width: min(100%, 360px);
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.profile-photo-upload input {
+  margin-top: 8px;
+  color: #fff;
+}
+
+.student-profile-academic {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(90px, 1fr));
+  gap: 8px;
+}
+
+.student-profile-academic div {
+  display: grid;
+  min-height: 92px;
+  place-content: center;
+  padding: 12px;
+  text-align: center;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.student-profile-academic span,
+.student-detail-grid span {
+  color: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.student-profile-academic strong {
+  margin-top: 4px;
+  font-size: 24px;
+}
+
+.profile-detail-band,
+.profile-notes-band {
+  padding: 28px 32px;
+}
+
+.profile-detail-band h3,
+.profile-notes-band h3 {
+  margin: 0 0 18px;
+}
+
+.student-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--line);
+}
+
+.student-detail-grid > div {
+  display: grid;
+  gap: 5px;
+  min-height: 82px;
+  padding: 14px;
+  background: #fff;
+}
+
+.student-detail-grid span {
+  color: var(--muted);
+}
+
+.profile-notes-band {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  background: #f8fafc;
+  border-top: 1px solid var(--line);
+}
+
+.profile-notes-band p {
+  margin: 0;
+  line-height: 1.65;
+}
+
+.competency-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.competency-list span {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fff;
+}
+
 table {
   width: 100%;
   min-width: 780px;
@@ -816,6 +1040,31 @@ th {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .student-import-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .student-import-grid .file-drop {
+    grid-column: 1 / -1;
+  }
+
+  .student-profile-hero {
+    grid-template-columns: 150px minmax(0, 1fr);
+  }
+
+  .student-profile-photo {
+    width: 150px;
+    height: 180px;
+  }
+
+  .student-profile-academic {
+    grid-column: 1 / -1;
+  }
+
+  .student-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .connection-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1086,10 +1335,84 @@ th {
 
   .form-grid,
   .marks-toolbar,
-  .report-toolbar {
+  .report-toolbar,
+  .student-import-grid {
     display: grid;
     grid-template-columns: 1fr;
     gap: 12px;
+  }
+
+  .student-import-panel .panel-heading button,
+  .import-status-row button {
+    width: 100%;
+  }
+
+  .file-drop {
+    min-height: 0;
+  }
+
+  .import-status-row,
+  .profile-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .profile-actions button {
+    width: 100%;
+  }
+
+  .student-profile-hero {
+    grid-template-columns: 1fr;
+    gap: 18px;
+    padding: 20px;
+    text-align: center;
+  }
+
+  .student-profile-photo {
+    width: 150px;
+    height: 180px;
+    margin: 0 auto;
+  }
+
+  .student-profile-identity h2 {
+    font-size: 25px;
+  }
+
+  .profile-photo-upload {
+    margin: 0 auto;
+    text-align: left;
+  }
+
+  .student-profile-academic {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .student-profile-academic div {
+    min-height: 78px;
+    padding: 8px;
+  }
+
+  .student-profile-academic span {
+    font-size: 10px;
+  }
+
+  .student-profile-academic strong {
+    font-size: 20px;
+  }
+
+  .profile-detail-band,
+  .profile-notes-band {
+    padding: 18px;
+  }
+
+  .student-detail-grid,
+  .profile-notes-band {
+    grid-template-columns: 1fr;
+  }
+
+  .student-detail-grid > div {
+    min-height: 68px;
   }
 
   input,
