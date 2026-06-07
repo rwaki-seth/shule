@@ -233,6 +233,11 @@ function studentFromTbl(row, index) {
       total: 60
     },
     activities: index % 2 ? ["Music", "Scouts"] : ["Debate", "Football"],
+    reportComments: {
+      classTeacher: index % 2 ? "Works well with others and is becoming more confident in class." : "Has shown steady effort and should maintain a consistent revision routine.",
+      dos: index % 3 ? "Academic progress is satisfactory; continue strengthening the lower-scoring subjects." : "A strong term overall. The learner should keep extending their independent study habits.",
+      headTeacher: index % 2 ? "Good progress. Continued partnership between home and school is encouraged." : "A commendable effort this term. Keep aiming higher."
+    },
     conduct: index % 4 === 0 ? "Excellent" : "Good",
     competencies: {
       Communication: 3 + (index % 3),
@@ -266,7 +271,7 @@ function buildMarks(students) {
         end: missing ? null : score,
         score: missing ? null : score,
         status: missing ? "Missing" : "Captured",
-        remarks: missing ? "Missing" : "Captured"
+        remarks: missing ? "" : subjectRemark(score, subject.name, student.name)
       });
     });
   });
@@ -313,6 +318,14 @@ function teacherForSubject(subjectId) {
   if (subjectId === "sci") return "t-sci";
   if (subjectId === "sst") return "t-sst";
   return "t-eng";
+}
+
+function subjectRemark(score, subjectName, studentName) {
+  const firstName = String(studentName || "The learner").split(/\s+/)[0];
+  if (score >= 85) return `${firstName} demonstrates excellent understanding in ${subjectName}.`;
+  if (score >= 70) return `${firstName} has a good command of ${subjectName} and should keep practising.`;
+  if (score >= 50) return `${firstName} is progressing in ${subjectName}; more revision will improve confidence.`;
+  return `${firstName} needs focused support and regular practice in ${subjectName}.`;
 }
 
 function normalizeGender(value) {
@@ -365,7 +378,9 @@ function calculateResults(db) {
         status,
         grade: status === "Absent" ? "ABS" : status === "Exempted" ? "EX" : grade.grade,
         aggregate: status === "Captured" ? grade.aggregate : null,
-        comment: status === "Captured" ? grade.comment : status,
+        comment: status === "Captured"
+          ? mark?.remarks && !["Captured", "Missing"].includes(mark.remarks) ? mark.remarks : subjectRemark(score, subject.name, student.name)
+          : status,
         teacherName: db.teachers.find((teacher) => teacher.id === mark?.teacherId)?.name || "-",
         subjectPosition: null
       };
@@ -674,7 +689,7 @@ function upsertMark(db, payload) {
     end: numericScore,
     score: numericScore,
     status,
-    remarks: payload.remarks || status
+    remarks: payload.remarks ?? existing?.remarks ?? ""
   };
   if (existing) Object.assign(existing, row);
   else db.marks.push(row);
@@ -704,7 +719,8 @@ function buildStudentRow(db, body, existing = null) {
     attendanceDays: body.attendanceDays || existing?.attendanceDays || { present: 0, absent: 0, total: 0 },
     activities: body.activities || existing?.activities || [],
     conduct: body.conduct || "Good",
-    competencies: existing?.competencies || { Communication: 3, Leadership: 3, Creativity: 3, Discipline: 3, Teamwork: 3, Responsibility: 3, Respect: 3 }
+    competencies: existing?.competencies || { Communication: 3, Leadership: 3, Creativity: 3, Discipline: 3, Teamwork: 3, Responsibility: 3, Respect: 3 },
+    reportComments: body.reportComments || existing?.reportComments || { classTeacher: "", dos: "", headTeacher: "" }
   };
 }
 
@@ -812,6 +828,7 @@ function updateStudentDetails(db, body) {
     student.attendance = total ? Math.round((present / total) * 100) : 0;
   }
   if (Array.isArray(body.activities)) student.activities = body.activities.filter(Boolean);
+  if (body.reportComments) student.reportComments = { ...student.reportComments, ...body.reportComments };
   db.audit.push(audit("School Admin", "Updated student profile", "-", student.admissionNo));
   return student;
 }
@@ -873,6 +890,7 @@ function verifiedReport(db, code) {
     conduct: student.conduct,
     activities: student.activities,
     competencies: student.competencies,
+    reportComments: student.reportComments,
     subjects: student.subjects,
     total: student.total,
     average: student.average,
@@ -1210,8 +1228,13 @@ function normalizeDb(db) {
   db.nextTerm = { ...defaults.nextTerm, ...(db.nextTerm || {}) };
   db.audit = Array.isArray(db.audit) ? db.audit : [];
   db.promotionHistory = Array.isArray(db.promotionHistory) ? db.promotionHistory : [];
-  db.students = (db.students || []).map((student) => {
+  db.students = (db.students || []).map((student, index) => {
     const attendance = Math.max(0, Math.min(100, Number(student.attendance || 0)));
+    const generatedComments = {
+      classTeacher: index % 2 ? "Works well with others and is becoming more confident in class." : "Has shown steady effort and should maintain a consistent revision routine.",
+      dos: index % 3 ? "Academic progress is satisfactory; continue strengthening the lower-scoring subjects." : "A strong term overall. The learner should keep extending their independent study habits.",
+      headTeacher: index % 2 ? "Good progress. Continued partnership between home and school is encouraged." : "A commendable effort this term. Keep aiming higher."
+    };
     return {
       ...student,
       alternativeContact: student.alternativeContact || "",
@@ -1221,6 +1244,10 @@ function normalizeDb(db) {
         total: 60
       },
       activities: Array.isArray(student.activities) ? student.activities : [],
+      reportComments: {
+        ...generatedComments,
+        ...(student.reportComments || {})
+      },
       competencies: { Respect: 3, ...(student.competencies || {}) }
     };
   });

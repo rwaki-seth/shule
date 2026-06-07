@@ -15,6 +15,162 @@
   --shadow: 0 14px 35px rgba(84, 15, 53, 0.12);
 }
 
+[hidden] {
+  display: none !important;
+}
+
+.access-portal {
+  min-height: 100vh;
+  padding: 28px;
+  background: #f4f6fa;
+}
+
+.access-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: 1180px;
+  margin: 0 auto 24px;
+  color: var(--primary);
+}
+
+.access-brand span {
+  display: block;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.access-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+  max-width: 1180px;
+  margin: 0 auto;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.access-verification,
+.staff-login-panel {
+  padding: 38px;
+}
+
+.access-verification {
+  min-height: 540px;
+  color: var(--white);
+  background: var(--primary);
+  border-bottom: 6px solid var(--gold);
+}
+
+.access-verification h1 {
+  max-width: 620px;
+  margin: 10px 0;
+  font-size: 42px;
+}
+
+.access-verification > p {
+  max-width: 660px;
+  line-height: 1.6;
+}
+
+.staff-login-panel {
+  align-self: stretch;
+}
+
+.staff-login-panel h2 {
+  margin: 8px 0 24px;
+}
+
+.access-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.access-verification .access-form {
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  max-width: 700px;
+}
+
+.access-verification .access-form label {
+  color: var(--white);
+}
+
+.text-button {
+  padding: 10px 0;
+  border: 0;
+  color: var(--primary);
+  background: transparent;
+  box-shadow: none;
+  text-align: left;
+}
+
+.bootstrap-form {
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.login-message {
+  min-height: 24px;
+  margin-top: 12px;
+  color: #b91c1c;
+  font-weight: 700;
+}
+
+.user-menu {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.user-menu span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.user-list {
+  display: grid;
+  gap: 10px;
+}
+
+.user-list article {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--gold);
+  border-radius: 8px;
+}
+
+.user-list article span {
+  display: block;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.user-role-control {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.user-role-control select {
+  min-width: 160px;
+}
+
+.remark-input {
+  width: 260px;
+  min-height: 64px;
+  resize: vertical;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -1497,10 +1653,6 @@ th {
     font-size: 12px;
   }
 
-  #printBtn {
-    display: none;
-  }
-
   .view.active {
     gap: 14px;
   }
@@ -2019,6 +2171,14 @@ th {
 }
 
 @media (max-width: 1024px) {
+  .access-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .access-verification {
+    min-height: 0;
+  }
+
   .analytics-summary-grid {
     grid-template-columns: 1fr;
   }
@@ -2038,6 +2198,51 @@ th {
 }
 
 @media (max-width: 639px) {
+  .access-portal {
+    padding: 12px;
+  }
+
+  .access-brand {
+    margin-bottom: 12px;
+  }
+
+  .access-verification,
+  .staff-login-panel {
+    padding: 22px 16px;
+  }
+
+  .access-verification h1 {
+    font-size: 29px;
+  }
+
+  .access-verification .access-form {
+    grid-template-columns: 1fr;
+  }
+
+  .access-form button {
+    width: 100%;
+  }
+
+  .user-menu {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .user-list article,
+  .user-role-control {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .user-role-control select,
+  .user-role-control button {
+    width: 100%;
+  }
+
+  .remark-input {
+    width: 100%;
+  }
+
   .profile-form {
     grid-template-columns: 1fr;
   }

@@ -2,7 +2,17 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { URL } = require("url");
-const QRCode = require("qrcode");
+const {
+  bootstrapSuperAdmin,
+  clearSessionCookies,
+  createUser,
+  getSession,
+  listUsers,
+  login,
+  requireRoles,
+  requireSession,
+  updateUserRole
+} = require("./api/_lib/auth");
 const {
   addStudent,
   addMovement,
@@ -60,13 +70,29 @@ function parseBody(req) {
 }
 
 async function handleApi(req, res, pathname, searchParams) {
+  if (req.method === "POST" && pathname === "/api/auth/login") {
+    const user = await login(req, res, await parseBody(req));
+    return sendJson(res, 200, { authenticated: true, user });
+  }
+  if (req.method === "POST" && pathname === "/api/auth/logout") {
+    clearSessionCookies(res);
+    return sendJson(res, 200, { authenticated: false });
+  }
+  if (req.method === "POST" && pathname === "/api/auth/bootstrap") {
+    const user = await bootstrapSuperAdmin(req, res, await parseBody(req));
+    return sendJson(res, 201, { authenticated: true, user });
+  }
+
+  const session = await getSession(req, res);
+  if (req.method === "GET" && pathname === "/api/auth/session") {
+    return sendJson(res, 200, { authenticated: Boolean(session), user: session });
+  }
+
   const db = await loadDb();
 
-  if (req.method === "GET" && pathname === "/api/bootstrap") return sendJson(res, 200, { ...db, storageMode: storageMode() });
-  if (req.method === "GET" && pathname === "/api/results") return sendJson(res, 200, { ...calculateResults(db), storageMode: storageMode() });
-  if (req.method === "GET" && pathname === "/api/storage-status") return sendJson(res, 200, storageStatus());
   if (req.method === "GET" && pathname === "/api/verify") return sendJson(res, 200, verifiedReport(db, searchParams.get("code")));
   if (req.method === "GET" && pathname === "/api/qr") {
+    const QRCode = require("qrcode");
     const code = String(searchParams.get("code") || "").trim();
     verifiedReport(db, code);
     const protocol = req.headers["x-forwarded-proto"] || "http";
@@ -78,7 +104,24 @@ async function handleApi(req, res, pathname, searchParams) {
     return res.end(svg);
   }
 
+  requireSession(session);
+
+  if (req.method === "GET" && pathname === "/api/bootstrap") return sendJson(res, 200, { ...db, currentUser: session, storageMode: storageMode() });
+  if (req.method === "GET" && pathname === "/api/results") return sendJson(res, 200, { ...calculateResults(db), storageMode: storageMode() });
+  if (req.method === "GET" && pathname === "/api/storage-status") return sendJson(res, 200, storageStatus());
+  if (req.method === "GET" && pathname === "/api/users") {
+    requireRoles(session, ["Super Admin"]);
+    return sendJson(res, 200, await listUsers());
+  }
+  if (req.method === "POST" && pathname === "/api/users") {
+    requireRoles(session, ["Super Admin"]);
+    const body = await parseBody(req);
+    if (body.action === "updateRole") return sendJson(res, 200, await updateUserRole(body));
+    return sendJson(res, 201, await createUser(body));
+  }
+
   if (req.method === "POST" && pathname === "/api/school") {
+    requireRoles(session, ["Super Admin", "School Admin"]);
     const body = await parseBody(req);
     db.school = { ...db.school, ...body };
     db.audit.push(audit("School Admin", "Updated school profile", "-", db.school.name));
@@ -87,6 +130,7 @@ async function handleApi(req, res, pathname, searchParams) {
   }
 
   if (req.method === "POST" && pathname === "/api/students") {
+    requireRoles(session, ["Super Admin", "School Admin", "Head Teacher", "DOS", "Class Teacher"]);
     const body = await parseBody(req);
     if (body.action === "import") {
       const result = importStudents(db, body);
@@ -110,7 +154,16 @@ async function handleApi(req, res, pathname, searchParams) {
   }
 
   if (req.method === "POST" && pathname === "/api/marks") {
+    requireRoles(session, ["Super Admin", "School Admin", "DOS", "Class Teacher", "Subject Teacher"]);
     const body = await parseBody(req);
+    if (session.role === "Subject Teacher") {
+      const teacher = db.teachers.find((item) => String(item.email || "").toLowerCase() === String(session.email || "").toLowerCase());
+      if (!teacher || teacher.id !== body.teacherId) {
+        const error = new Error("Subject teachers may only upload marks under their own assigned teacher account");
+        error.statusCode = 403;
+        throw error;
+      }
+    }
     const errors = validateMarks(db, body);
     if (errors.length) {
       db.uploadErrors = errors;
@@ -148,24 +201,28 @@ async function handleApi(req, res, pathname, searchParams) {
   }
 
   if (req.method === "POST" && pathname === "/api/deadlines") {
+    requireRoles(session, ["Super Admin", "School Admin", "Head Teacher", "DOS"]);
     const deadline = saveDeadline(db, await parseBody(req));
     await saveDb(db);
     return sendJson(res, 200, deadline);
   }
 
   if (req.method === "POST" && pathname === "/api/promotions") {
+    requireRoles(session, ["Super Admin", "School Admin", "Head Teacher", "DOS"]);
     const history = approvePromotion(db, await parseBody(req));
     await saveDb(db);
     return sendJson(res, 200, history);
   }
 
   if (req.method === "POST" && pathname === "/api/movements") {
+    requireRoles(session, ["Super Admin", "School Admin", "Head Teacher", "DOS", "Class Teacher"]);
     const movement = addMovement(db, await parseBody(req));
     await saveDb(db);
     return sendJson(res, 201, movement);
   }
 
   if (req.method === "POST" && pathname === "/api/settings") {
+    requireRoles(session, ["Super Admin", "School Admin", "Head Teacher", "DOS"]);
     const settings = updateSettings(db, await parseBody(req));
     await saveDb(db);
     return sendJson(res, 200, settings);
@@ -198,7 +255,7 @@ const server = http.createServer(async (req, res) => {
     if (pathname.startsWith("/api/")) return await handleApi(req, res, pathname, searchParams);
     return serveStatic(req, res, pathname);
   } catch (error) {
-    return sendError(res, 400, error.message || "Request failed");
+    return sendError(res, error.statusCode || 400, error.message || "Request failed");
   }
 });
 

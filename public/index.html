@@ -7,7 +7,44 @@
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
-    <aside class="sidebar">
+    <section id="accessPortal" class="access-portal">
+      <div class="access-brand">
+        <div class="brand-mark">MJA</div>
+        <div><strong>Makindye Junior Academy</strong><span>Results and report verification</span></div>
+      </div>
+      <div class="access-grid">
+        <section class="access-verification">
+          <p class="eyebrow">Parents & Visitors</p>
+          <h1>Verify a learner report</h1>
+          <p>Use the verification code printed on the official report. No school administration data is exposed here.</p>
+          <form id="publicVerificationForm" class="access-form">
+            <label>Verification Code <input id="publicVerificationCode" required placeholder="MJA-2026-..."></label>
+            <button type="submit">Verify Report</button>
+          </form>
+          <div id="publicVerificationContent"></div>
+        </section>
+        <section class="staff-login-panel">
+          <p class="eyebrow">Authorized Staff</p>
+          <h2>Staff sign in</h2>
+          <form id="loginForm" class="access-form">
+            <label>Email <input name="email" type="email" autocomplete="username" required></label>
+            <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
+            <button type="submit">Sign In</button>
+          </form>
+          <button id="showBootstrapBtn" type="button" class="text-button">First Super Admin setup</button>
+          <form id="bootstrapForm" class="access-form bootstrap-form" hidden>
+            <label>Full Name <input name="name" required></label>
+            <label>Email <input name="email" type="email" required></label>
+            <label>Password <input name="password" type="password" minlength="8" required></label>
+            <label>Setup Key <input name="setupKey" type="password" required></label>
+            <button type="submit">Create Super Admin</button>
+          </form>
+          <div id="loginMessage" class="login-message"></div>
+        </section>
+      </div>
+    </section>
+
+    <aside class="sidebar" id="staffSidebar" hidden>
       <div class="brand">
         <div class="brand-mark">MJA</div>
         <div>
@@ -24,11 +61,11 @@
         <button class="nav-button" data-view="promotion">Promotion</button>
         <button class="nav-button" data-view="analytics">Analytics</button>
         <button class="nav-button" data-view="reports">Reports</button>
-        <button class="nav-button" data-view="parentPortal">Verify Report</button>
+        <button class="nav-button" data-view="accessControl">Access Control</button>
       </nav>
     </aside>
 
-    <main class="app-shell">
+    <main class="app-shell" id="staffShell" hidden>
       <header class="topbar">
         <div class="mobile-school-brand">
           <div class="mobile-brand-mark">MJA</div>
@@ -43,7 +80,7 @@
         </div>
         <div class="actions">
           <button id="refreshBtn" class="secondary">Refresh</button>
-          <button id="printBtn">Print Class Reports</button>
+          <div class="user-menu"><span id="currentUserRole">Signed out</span><button id="logoutBtn" type="button">Sign Out</button></div>
         </div>
       </header>
 
@@ -128,10 +165,6 @@
             <span>Comments and next-term information used on official learner reports</span>
           </div>
           <form id="reportSettingsForm" class="form-grid">
-            <label>Subject Teacher Comment <textarea name="subjectTeacher"></textarea></label>
-            <label>Class Teacher Comment <textarea name="teacher"></textarea></label>
-            <label>Director of Studies Comment <textarea name="dos"></textarea></label>
-            <label>Head Teacher Comment <textarea name="headteacher"></textarea></label>
             <label>Next Term Opens <input name="openingDate" type="date"></label>
             <label>Next Term Closes <input name="closingDate" type="date"></label>
             <label>Fees / Account Note <textarea name="feesBalance"></textarea></label>
@@ -256,7 +289,7 @@
           <div class="table-wrap">
             <table>
               <thead>
-                <tr><th>Adm No.</th><th>Student</th><th>Class</th><th>Stream</th><th>Mark</th><th>Status</th></tr>
+                <tr><th>Adm No.</th><th>Student</th><th>Class</th><th>Stream</th><th>Mark</th><th>Teacher Remark</th><th>Status</th></tr>
               </thead>
               <tbody id="marksBody"></tbody>
             </table>
@@ -415,9 +448,29 @@
         </section>
         <section id="verificationContent" class="verification-content"></section>
       </section>
+
+      <section id="accessControl" class="view">
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Staff Access Control</h2>
+            <span>Create staff accounts and assign the modules they can access</span>
+          </div>
+          <form id="userForm" class="form-grid">
+            <label>Full Name <input name="name" required></label>
+            <label>Email <input name="email" type="email" required></label>
+            <label>Temporary Password <input name="password" type="password" minlength="8" required></label>
+            <label>Role <select name="role"><option>School Admin</option><option>Head Teacher</option><option>DOS</option><option>Class Teacher</option><option>Subject Teacher</option><option>Viewer</option><option>Super Admin</option></select></label>
+            <button type="submit">Create Staff Account</button>
+          </form>
+        </section>
+        <section class="panel">
+          <div class="panel-heading"><h2>Authorized Users</h2><span id="userCountLabel">0 users</span></div>
+          <div id="userList" class="user-list"></div>
+        </section>
+      </section>
     </main>
 
-    <nav class="mobile-bottom-nav" aria-label="Primary navigation">
+    <nav class="mobile-bottom-nav" id="staffMobileNav" aria-label="Primary navigation" hidden>
       <button class="mobile-nav-button active" data-view="dashboard"><span>Home</span></button>
       <button class="mobile-nav-button" data-view="students"><span>Students</span></button>
       <button class="mobile-nav-button" data-view="marks"><span>Marks</span></button>
@@ -436,7 +489,7 @@
         <button class="mobile-more-button" data-view="monitoring">Monitoring</button>
         <button class="mobile-more-button" data-view="promotion">Promotion</button>
         <button class="mobile-more-button" data-view="analytics">Analytics</button>
-        <button class="mobile-more-button" data-view="parentPortal">Verify Report</button>
+        <button class="mobile-more-button" data-view="accessControl">Access Control</button>
       </div>
     </aside>
 

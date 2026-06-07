@@ -7,10 +7,25 @@ let reportMode = "student";
 let latestUploadErrors = [];
 let latestStudentImportErrors = [];
 let connectionStatus = { configured: false, mode: "checking", lastError: "" };
+let currentUser = null;
+let staffUsers = [];
 
 const STATUS_OPTIONS = ["Active", "Graduated", "Transferred", "Suspended", "Expelled", "Dropped Out", "Deceased", "Inactive"];
 
 const els = {
+  accessPortal: document.getElementById("accessPortal"),
+  staffSidebar: document.getElementById("staffSidebar"),
+  staffShell: document.getElementById("staffShell"),
+  staffMobileNav: document.getElementById("staffMobileNav"),
+  loginForm: document.getElementById("loginForm"),
+  bootstrapForm: document.getElementById("bootstrapForm"),
+  showBootstrapBtn: document.getElementById("showBootstrapBtn"),
+  loginMessage: document.getElementById("loginMessage"),
+  publicVerificationForm: document.getElementById("publicVerificationForm"),
+  publicVerificationCode: document.getElementById("publicVerificationCode"),
+  publicVerificationContent: document.getElementById("publicVerificationContent"),
+  currentUserRole: document.getElementById("currentUserRole"),
+  logoutBtn: document.getElementById("logoutBtn"),
   pageTitle: document.getElementById("pageTitle"),
   schoolMeta: document.getElementById("schoolMeta"),
   heroSchool: document.getElementById("heroSchool"),
@@ -101,6 +116,9 @@ const els = {
   verificationForm: document.getElementById("verificationForm"),
   verificationCodeInput: document.getElementById("verificationCodeInput"),
   verificationContent: document.getElementById("verificationContent"),
+  userForm: document.getElementById("userForm"),
+  userList: document.getElementById("userList"),
+  userCountLabel: document.getElementById("userCountLabel"),
   toast: document.getElementById("toast")
 };
 
@@ -114,24 +132,86 @@ async function api(path, options = {}) {
     const error = new Error(payload.error || "Request failed");
     error.payload = payload;
     console.error("API request failed", path, payload);
+    if (response.status === 401 && !path.startsWith("/api/auth/")) showPublicPortal();
     throw error;
   }
   return payload;
 }
 
 async function loadData() {
+  const refreshButton = document.getElementById("refreshBtn");
+  if (refreshButton) {
+    refreshButton.disabled = true;
+    refreshButton.textContent = "Refreshing...";
+  }
   try {
     db = await api("/api/bootstrap");
     results = await api("/api/results");
     connectionStatus = await api("/api/storage-status");
     renderAll();
     applyUrlRoute();
+    if (currentUser?.role === "Super Admin") await loadUsers();
   } catch (error) {
     console.error("Shule data load failed", error);
     connectionStatus = { configured: false, mode: "failed", lastError: error.message || "Unable to load school data" };
     renderConnectionStatus();
     toast(`Connection failed: ${connectionStatus.lastError}`);
+  } finally {
+    if (refreshButton) {
+      refreshButton.disabled = false;
+      refreshButton.textContent = "Refresh";
+    }
   }
+}
+
+async function initializeApp() {
+  try {
+    const session = await api("/api/auth/session");
+    if (session.authenticated) {
+      currentUser = session.user;
+      showStaffApp();
+      await loadData();
+      return;
+    }
+  } catch (error) {
+    console.error("Session check failed", error);
+  }
+  showPublicPortal();
+}
+
+function showStaffApp() {
+  els.accessPortal.hidden = true;
+  els.staffSidebar.hidden = false;
+  els.staffShell.hidden = false;
+  els.staffMobileNav.hidden = false;
+  els.currentUserRole.textContent = `${currentUser.name} | ${currentUser.role}`;
+  applyRoleAccess();
+}
+
+function showPublicPortal() {
+  currentUser = null;
+  els.accessPortal.hidden = false;
+  els.staffSidebar.hidden = true;
+  els.staffShell.hidden = true;
+  els.staffMobileNav.hidden = true;
+  const match = window.location.hash.match(/^#verify\/(.+)$/);
+  if (match) {
+    els.publicVerificationCode.value = decodeURIComponent(match[1]);
+    verifyPublicReport().catch(() => {});
+  }
+}
+
+function applyRoleAccess() {
+  const allowed = new Set(currentUser?.views || []);
+  document.querySelectorAll("[data-view]").forEach((button) => {
+    button.hidden = !allowed.has(button.dataset.view);
+  });
+  document.querySelectorAll(".view").forEach((view) => {
+    if (!allowed.has(view.id) && view.id !== "studentProfile") view.classList.remove("active");
+  });
+  const firstView = allowed.has("dashboard") ? "dashboard" : [...allowed][0];
+  const active = document.querySelector(".view.active");
+  if (!active || (!allowed.has(active.id) && active.id !== "studentProfile")) navigateTo(firstView, null);
 }
 
 function renderAll() {
@@ -290,6 +370,10 @@ function decorateMobileTables() {
 }
 
 function navigateTo(viewName, label) {
+  if (currentUser && viewName !== "studentProfile" && !currentUser.views.includes(viewName)) {
+    toast("Your role does not permit access to this module");
+    return;
+  }
   if (viewName !== "studentProfile" && window.location.hash.startsWith("#student/")) {
     window.history.replaceState(null, "", `#${viewName}`);
   }
@@ -299,7 +383,7 @@ function navigateTo(viewName, label) {
   document.querySelectorAll(".nav-button, .mobile-nav-button, .mobile-more-button").forEach((item) => {
     item.classList.toggle("active", item.dataset.view === navigationView);
   });
-  const secondaryView = ["setup", "monitoring", "promotion", "analytics", "parentPortal"].includes(viewName);
+  const secondaryView = ["setup", "monitoring", "promotion", "analytics", "accessControl"].includes(viewName);
   els.moreNavButton?.classList.toggle("active", secondaryView);
   els.pageTitle.textContent = label || document.querySelector(`[data-view="${viewName}"]`)?.textContent.trim() || viewName;
   closeMobileMoreSheet();
@@ -410,6 +494,9 @@ function renderStudentProfile() {
         <label>Total School Days <input name="total" type="number" min="0" value="${attendance.total || 0}"></label>
         <label>Activities <input name="activities" value="${escapeHtml((student.activities || []).join(", "))}" placeholder="Debate, Football"></label>
         <label>Notes <textarea name="notes">${escapeHtml(student.notes || "")}</textarea></label>
+        <label>Class Teacher Comment <textarea name="classTeacherComment">${escapeHtml(student.reportComments?.classTeacher || "")}</textarea></label>
+        <label>DOS Comment <textarea name="dosComment">${escapeHtml(student.reportComments?.dos || "")}</textarea></label>
+        <label>Head Teacher Comment <textarea name="headTeacherComment">${escapeHtml(student.reportComments?.headTeacher || "")}</textarea></label>
         <button type="submit">Save Student Details</button>
       </form>
       <form id="studentMovementForm" class="profile-form panel">
@@ -454,10 +541,11 @@ function renderMarksEntry() {
         <td>${escapeHtml(student.classLevel || classById(student.classId)?.level || "")}</td>
         <td>${escapeHtml(student.stream || classById(student.classId)?.stream || "")}</td>
         <td><input class="score-input" type="number" min="0" max="100" data-student-id="${student.id}" data-admission-no="${escapeHtml(student.admissionNo)}" value="${mark?.score ?? ""}"></td>
+        <td><textarea class="remark-input" data-student-id="${student.id}" placeholder="Individual subject remark">${escapeHtml(mark?.remarks || "")}</textarea></td>
         <td><span class="pill ${mark?.status === "Captured" ? "pill-green" : "pill-orange"}">${mark?.status || "Missing"}</span></td>
       </tr>
     `;
-  }).join("") : `<tr><td colspan="6">No active learners for this class and stream.</td></tr>`;
+  }).join("") : `<tr><td colspan="7">No active learners for this class and stream.</td></tr>`;
   decorateMobileTables();
 }
 
@@ -668,10 +756,9 @@ function renderReportPageThree(student) {
     <section class="report-page">
       <div class="report-subhead"><h2>Comments, Matrix & Verification</h2><span>${escapeHtml(student.verificationCode)}</span></div>
       <div class="comment-grid">
-        <div><h3>Subject Teacher Comment</h3><p>${escapeHtml(db.comments.subjectTeacher)}</p></div>
-        <div><h3>Class Teacher Comment</h3><p>${escapeHtml(db.comments.teacher)}</p></div>
-        <div><h3>Director of Studies Comment</h3><p>${escapeHtml(db.comments.dos)}</p></div>
-        <div><h3>Head Teacher Comment</h3><p>${escapeHtml(db.comments.headteacher)}</p></div>
+        <div><h3>Class Teacher Comment</h3><p>${escapeHtml(student.reportComments?.classTeacher || "No comment recorded.")}</p></div>
+        <div><h3>Director of Studies Comment</h3><p>${escapeHtml(student.reportComments?.dos || "No comment recorded.")}</p></div>
+        <div><h3>Head Teacher Comment</h3><p>${escapeHtml(student.reportComments?.headTeacher || "No comment recorded.")}</p></div>
         <div><h3>Co-Curricular Activities</h3><p>${escapeHtml((student.activities?.length ? student.activities : db.activities).join(", "))}</p></div>
         <div><h3>Student Conduct</h3><p>${escapeHtml(student.conduct)}</p></div>
       </div>
@@ -719,12 +806,6 @@ async function saveReportSettings(event) {
   await api("/api/settings", {
     method: "POST",
     body: JSON.stringify({
-      comments: {
-        subjectTeacher: values.subjectTeacher,
-        teacher: values.teacher,
-        dos: values.dos,
-        headteacher: values.headteacher
-      },
       nextTerm: {
         openingDate: values.openingDate,
         closingDate: values.closingDate,
@@ -874,6 +955,11 @@ async function saveStudentDetails(event) {
       alternativeContact: values.alternativeContact,
       notes: values.notes,
       activities: String(values.activities || "").split(",").map((item) => item.trim()).filter(Boolean),
+      reportComments: {
+        classTeacher: values.classTeacherComment,
+        dos: values.dosComment,
+        headTeacher: values.headTeacherComment
+      },
       attendanceDays: {
         present: Number(values.present || 0),
         absent: Number(values.absent || 0),
@@ -912,24 +998,28 @@ function applyUrlRoute() {
     if (db.students.some((item) => item.id === studentId)) openStudentProfile(studentId);
     return;
   }
-  const verifyMatch = window.location.hash.match(/^#verify\/(.+)$/);
-  if (verifyMatch) {
-    els.verificationCodeInput.value = decodeURIComponent(verifyMatch[1]);
-    navigateTo("parentPortal", "Verify Report");
-    verifyReport().catch((error) => toast(error.message));
-  }
 }
 
 async function verifyReport(event) {
   event?.preventDefault();
   const code = els.verificationCodeInput.value.trim();
+  return runVerification(code, els.verificationContent);
+}
+
+async function verifyPublicReport(event) {
+  event?.preventDefault();
+  const code = els.publicVerificationCode.value.trim();
+  return runVerification(code, els.publicVerificationContent);
+}
+
+async function runVerification(code, container) {
   if (!code) return;
-  els.verificationContent.innerHTML = `<div class="empty-state">Checking the report...</div>`;
+  container.innerHTML = `<div class="empty-state">Checking the report...</div>`;
   try {
     const verified = await api(`/api/verify?code=${encodeURIComponent(code)}`);
     const student = verified.student;
     window.history.replaceState(null, "", `#verify/${encodeURIComponent(code)}`);
-    els.verificationContent.innerHTML = `
+    container.innerHTML = `
       <section class="verified-banner"><strong>Verified Official Report</strong><span>Checked ${formatDate(verified.verifiedAt)}</span></section>
       <section class="verified-student-card">
         <div class="student-profile-photo">${student.photo ? `<img src="${escapeHtml(student.photo)}" alt="${escapeHtml(student.name)}">` : `<span>${escapeHtml(student.name.split(/\s+/).map((part) => part[0]).slice(0, 2).join(""))}</span>`}</div>
@@ -948,9 +1038,84 @@ async function verifyReport(event) {
       </section>
     `;
   } catch (error) {
-    els.verificationContent.innerHTML = `<div class="verification-failed"><strong>Verification Failed</strong><span>${escapeHtml(error.message)}</span></div>`;
+    container.innerHTML = `<div class="verification-failed"><strong>Verification Failed</strong><span>${escapeHtml(error.message)}</span></div>`;
     throw error;
   }
+}
+
+async function signIn(event) {
+  event.preventDefault();
+  els.loginMessage.textContent = "Signing in...";
+  try {
+    const body = Object.fromEntries(new FormData(event.currentTarget).entries());
+    const session = await api("/api/auth/login", { method: "POST", body: JSON.stringify(body) });
+    currentUser = session.user;
+    els.loginMessage.textContent = "";
+    showStaffApp();
+    await loadData();
+  } catch (error) {
+    els.loginMessage.textContent = error.message;
+  }
+}
+
+async function createFirstAdmin(event) {
+  event.preventDefault();
+  els.loginMessage.textContent = "Creating the Super Admin account...";
+  try {
+    const body = Object.fromEntries(new FormData(event.currentTarget).entries());
+    const session = await api("/api/auth/bootstrap", { method: "POST", body: JSON.stringify(body) });
+    currentUser = session.user;
+    els.loginMessage.textContent = "";
+    showStaffApp();
+    await loadData();
+  } catch (error) {
+    els.loginMessage.textContent = error.message;
+  }
+}
+
+async function signOut() {
+  await api("/api/auth/logout", { method: "POST", body: "{}" });
+  db = null;
+  results = null;
+  showPublicPortal();
+}
+
+async function loadUsers() {
+  if (currentUser?.role !== "Super Admin") return;
+  staffUsers = await api("/api/users");
+  renderUsers();
+}
+
+function renderUsers() {
+  els.userCountLabel.textContent = `${staffUsers.length} user(s)`;
+  els.userList.innerHTML = staffUsers.map((user) => `
+    <article>
+      <div><strong>${escapeHtml(user.name)}</strong><span>${escapeHtml(user.email)}</span></div>
+      <div class="user-role-control">
+        <select data-user-role="${escapeHtml(user.id)}">${["Super Admin", "School Admin", "Head Teacher", "DOS", "Class Teacher", "Subject Teacher", "Viewer"].map((role) => `<option ${role === user.role ? "selected" : ""}>${role}</option>`).join("")}</select>
+        <button type="button" class="secondary save-user-role" data-user-id="${escapeHtml(user.id)}">Save Role</button>
+      </div>
+    </article>
+  `).join("") || `<div class="empty-state">No staff accounts found.</div>`;
+}
+
+async function createStaffUser(event) {
+  event.preventDefault();
+  const body = Object.fromEntries(new FormData(event.currentTarget).entries());
+  await api("/api/users", { method: "POST", body: JSON.stringify(body) });
+  event.currentTarget.reset();
+  toast("Staff account created");
+  await loadUsers();
+}
+
+async function saveUserRole(userId) {
+  const role = document.querySelector(`[data-user-role="${userId}"]`)?.value;
+  await api("/api/users", {
+    method: "POST",
+    body: JSON.stringify({ action: "updateRole", userId, role })
+  });
+  toast("User role updated");
+  await loadUsers();
 }
 
 function compressImage(file) {
@@ -984,7 +1149,13 @@ async function saveMarks() {
   const context = marksContext();
   const marks = [...document.querySelectorAll(".score-input")]
     .filter((input) => input.value !== "")
-    .map((input, index) => ({ rowNumber: index + 2, studentId: input.dataset.studentId, admissionNo: input.dataset.admissionNo, score: Number(input.value) }));
+    .map((input, index) => ({
+      rowNumber: index + 2,
+      studentId: input.dataset.studentId,
+      admissionNo: input.dataset.admissionNo,
+      score: Number(input.value),
+      remarks: document.querySelector(`.remark-input[data-student-id="${input.dataset.studentId}"]`)?.value.trim() || ""
+    }));
   try {
     await api("/api/marks", { method: "POST", body: JSON.stringify({ ...context, marks }) });
     latestUploadErrors = [];
@@ -1030,7 +1201,7 @@ async function importCsv(file) {
     const score = Number(markValue);
     if (!Number.isFinite(score) || score < 0 || score > 100) return errors.push(errorRow(rowNumber, admissionNo, "Mark Range", "Mark must be between 0 and 100"));
     seen.add(admissionNo);
-    marks.push({ rowNumber, studentId: student.id, admissionNo, score });
+    marks.push({ rowNumber, studentId: student.id, admissionNo, score, remarks: String(row[9] || "").trim() });
   });
   if (!isTeacherAssigned(context.teacherId, context.classId, context.subjectId)) {
     errors.push(errorRow("-", "-", "Teacher Assignment", "Teacher is not assigned to this class, stream and subject"));
@@ -1247,6 +1418,18 @@ document.querySelectorAll(".nav-button, .mobile-nav-button[data-view], .mobile-m
 els.moreNavButton.addEventListener("click", openMobileMoreSheet);
 els.closeMoreSheet.addEventListener("click", closeMobileMoreSheet);
 els.mobileSheetBackdrop.addEventListener("click", closeMobileMoreSheet);
+els.loginForm?.addEventListener("submit", signIn);
+els.bootstrapForm?.addEventListener("submit", createFirstAdmin);
+els.showBootstrapBtn?.addEventListener("click", () => {
+  els.bootstrapForm.hidden = !els.bootstrapForm.hidden;
+});
+els.publicVerificationForm?.addEventListener("submit", (event) => verifyPublicReport(event).catch(() => {}));
+els.logoutBtn?.addEventListener("click", signOut);
+els.userForm?.addEventListener("submit", createStaffUser);
+els.userList?.addEventListener("click", (event) => {
+  const button = event.target.closest(".save-user-role");
+  if (button) saveUserRole(button.dataset.userId).catch((error) => toast(error.message));
+});
 
 els.schoolProfileForm.addEventListener("submit", saveSchoolProfile);
 els.reportSettingsForm?.addEventListener("submit", saveReportSettings);
@@ -1283,10 +1466,9 @@ els.csvInput.addEventListener("change", (event) => {
 });
 els.deadlineForm.addEventListener("submit", saveDeadline);
 els.approvePromotionBtn.addEventListener("click", approvePromotion);
-document.getElementById("refreshBtn").addEventListener("click", loadData);
-document.getElementById("printBtn").addEventListener("click", () => {
-  document.querySelector('[data-view="reports"]').click();
-  printClassReports();
+document.getElementById("refreshBtn").addEventListener("click", async () => {
+  await loadData();
+  toast(`Data refreshed at ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
 });
 els.reportStudentSelect.addEventListener("change", viewStudentReport);
 els.reportClassSelect.addEventListener("change", () => {
@@ -1307,4 +1489,7 @@ window.addEventListener("afterprint", () => {
   renderReports();
 });
 
-loadData().catch((error) => toast(error.message));
+initializeApp().catch((error) => {
+  showPublicPortal();
+  els.loginMessage.textContent = error.message;
+});
