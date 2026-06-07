@@ -13,6 +13,7 @@
   --orange: #ff6900;
   --red: #dc2626;
   --shadow: 0 14px 35px rgba(84, 15, 53, 0.12);
+  --maroon: #540f35;
 }
 
 [hidden] {
@@ -20,7 +21,12 @@
 }
 
 .access-portal {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-width: 0;
   min-height: 100vh;
+  display: grid;
+  align-content: center;
   padding: 28px;
   background: #f4f6fa;
 }
@@ -42,25 +48,32 @@
 
 .access-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+  grid-template-columns: minmax(0, 1.35fr) minmax(360px, 0.65fr);
+  width: 100%;
   max-width: 1180px;
   margin: 0 auto;
   background: var(--white);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 12px;
   overflow: hidden;
   box-shadow: var(--shadow);
 }
 
 .access-verification,
 .staff-login-panel {
+  min-width: 0;
   padding: 38px;
 }
 
 .access-verification {
+  position: relative;
+  z-index: 1;
   min-height: 540px;
+  overflow: hidden;
   color: var(--white);
-  background: var(--primary);
+  background:
+    linear-gradient(135deg, rgba(84, 15, 53, 0.98), rgba(63, 10, 41, 0.94)),
+    radial-gradient(circle at 85% 18%, rgba(252, 185, 0, 0.28), transparent 32%);
   border-bottom: 6px solid var(--gold);
 }
 
@@ -76,7 +89,10 @@
 }
 
 .staff-login-panel {
+  position: relative;
+  z-index: 2;
   align-self: stretch;
+  background: var(--white);
 }
 
 .staff-login-panel h2 {
@@ -87,6 +103,13 @@
   display: grid;
   gap: 14px;
   margin-top: 24px;
+}
+
+.access-form,
+.access-form label,
+.access-form input,
+.access-form button {
+  min-width: 0;
 }
 
 .access-verification .access-form {
@@ -530,8 +553,10 @@ label {
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
+  min-width: 0;
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 10px 11px;
