@@ -2,6 +2,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { URL } = require("url");
+const QRCode = require("qrcode");
 const {
   addStudent,
   addMovement,
@@ -65,6 +66,17 @@ async function handleApi(req, res, pathname, searchParams) {
   if (req.method === "GET" && pathname === "/api/results") return sendJson(res, 200, { ...calculateResults(db), storageMode: storageMode() });
   if (req.method === "GET" && pathname === "/api/storage-status") return sendJson(res, 200, storageStatus());
   if (req.method === "GET" && pathname === "/api/verify") return sendJson(res, 200, verifiedReport(db, searchParams.get("code")));
+  if (req.method === "GET" && pathname === "/api/qr") {
+    const code = String(searchParams.get("code") || "").trim();
+    verifiedReport(db, code);
+    const protocol = req.headers["x-forwarded-proto"] || "http";
+    const verificationUrl = `${protocol}://${req.headers.host}/#verify/${encodeURIComponent(code)}`;
+    const svg = await QRCode.toString(verificationUrl, { type: "svg", width: 140, margin: 1, errorCorrectionLevel: "M" });
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    return res.end(svg);
+  }
 
   if (req.method === "POST" && pathname === "/api/school") {
     const body = await parseBody(req);
