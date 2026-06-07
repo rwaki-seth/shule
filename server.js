@@ -4,6 +4,7 @@ const path = require("path");
 const { URL } = require("url");
 const {
   addStudent,
+  addMovement,
   importStudents,
   approvePromotion,
   audit,
@@ -15,9 +16,12 @@ const {
   sendJson,
   storageMode,
   storageStatus,
+  updateSettings,
+  updateStudentDetails,
   updateStudentPhoto,
   upsertMark,
-  validateMarks
+  validateMarks,
+  verifiedReport
 } = require("./api/_lib/shule");
 
 const PORT = Number(process.env.PORT || 3000);
@@ -54,12 +58,13 @@ function parseBody(req) {
   });
 }
 
-async function handleApi(req, res, pathname) {
+async function handleApi(req, res, pathname, searchParams) {
   const db = await loadDb();
 
   if (req.method === "GET" && pathname === "/api/bootstrap") return sendJson(res, 200, { ...db, storageMode: storageMode() });
   if (req.method === "GET" && pathname === "/api/results") return sendJson(res, 200, { ...calculateResults(db), storageMode: storageMode() });
   if (req.method === "GET" && pathname === "/api/storage-status") return sendJson(res, 200, storageStatus());
+  if (req.method === "GET" && pathname === "/api/verify") return sendJson(res, 200, verifiedReport(db, searchParams.get("code")));
 
   if (req.method === "POST" && pathname === "/api/school") {
     const body = await parseBody(req);
@@ -79,6 +84,11 @@ async function handleApi(req, res, pathname) {
     }
     if (body.action === "updatePhoto") {
       const student = updateStudentPhoto(db, body);
+      await saveDb(db);
+      return sendJson(res, 200, student);
+    }
+    if (body.action === "updateDetails") {
+      const student = updateStudentDetails(db, body);
       await saveDb(db);
       return sendJson(res, 200, student);
     }
@@ -137,6 +147,18 @@ async function handleApi(req, res, pathname) {
     return sendJson(res, 200, history);
   }
 
+  if (req.method === "POST" && pathname === "/api/movements") {
+    const movement = addMovement(db, await parseBody(req));
+    await saveDb(db);
+    return sendJson(res, 201, movement);
+  }
+
+  if (req.method === "POST" && pathname === "/api/settings") {
+    const settings = updateSettings(db, await parseBody(req));
+    await saveDb(db);
+    return sendJson(res, 200, settings);
+  }
+
   return sendError(res, 404, "API route not found");
 }
 
@@ -160,8 +182,8 @@ function serveStatic(req, res, pathname) {
 
 const server = http.createServer(async (req, res) => {
   try {
-    const { pathname } = new URL(req.url, `http://${req.headers.host}`);
-    if (pathname.startsWith("/api/")) return await handleApi(req, res, pathname);
+    const { pathname, searchParams } = new URL(req.url, `http://${req.headers.host}`);
+    if (pathname.startsWith("/api/")) return await handleApi(req, res, pathname, searchParams);
     return serveStatic(req, res, pathname);
   } catch (error) {
     return sendError(res, 400, error.message || "Request failed");

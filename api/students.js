@@ -1,4 +1,4 @@
-const { addStudent, importStudents, loadDb, saveDb, sendError, sendJson, updateStudentPhoto } = require("./_lib/shule");
+const { addStudent, importStudents, loadDb, saveDb, sendError, sendJson, updateStudentDetails, updateStudentPhoto } = require("./_lib/shule");
 
 module.exports = async function handler(req, res) {
   try {
@@ -13,6 +13,11 @@ module.exports = async function handler(req, res) {
     }
     if (body.action === "updatePhoto") {
       const student = updateStudentPhoto(db, body);
+      await saveDb(db);
+      return sendJson(res, 200, student);
+    }
+    if (body.action === "updateDetails") {
+      const student = updateStudentDetails(db, body);
       await saveDb(db);
       return sendJson(res, 200, student);
     }

@@ -154,10 +154,20 @@ function seedData() {
       errorRow(8, "MJA-1015", "Teacher Assignment", "Teacher is not assigned to this class and subject", "batch-002")
     ],
     comments: {
+      subjectTeacher: "The learner participates well and should continue revising consistently.",
       teacher: "Shows steady effort and should keep practicing weaker subject areas.",
+      dos: "Academic progress is satisfactory. Targeted support is recommended in weaker subjects.",
       headteacher: "A promising learner. Parent support and consistent revision are encouraged."
     },
     activities: ["Debate", "Football", "Music", "Scouts"],
+    movements: [],
+    nextTerm: {
+      openingDate: "2026-09-14",
+      closingDate: "2026-12-04",
+      feesBalance: "Contact the bursar for the current statement.",
+      requirements: "Exercise books, mathematical set, and full school uniform.",
+      specialNotes: "Report on opening day by 8:00 AM."
+    },
     audit: [
       audit("Director of Studies", "Generated demo reports", "-", "MJA Term II reports"),
       audit("School Admin", "Seeded MVP2 setup", "-", "tblStudent-compatible student structure")
@@ -210,12 +220,19 @@ function studentFromTbl(row, index) {
     house: house || "",
     guardian: parentName || "",
     contact: parentContact || "",
+    alternativeContact: "",
     photo: photoUrl === "Placeholder" ? "" : photoUrl || "",
     classId: `${levelId}-${streamId}`,
     status: "Active",
     admissionDate: "2026-02-02",
     notes: "Imported structure follows Drive tblStudents.xlsx",
     attendance: 70 + ((index * 7) % 26),
+    attendanceDays: {
+      present: Math.round((70 + ((index * 7) % 26)) * 0.6),
+      absent: Math.round((100 - (70 + ((index * 7) % 26))) * 0.6),
+      total: 60
+    },
+    activities: index % 2 ? ["Music", "Scouts"] : ["Debate", "Football"],
     conduct: index % 4 === 0 ? "Excellent" : "Good",
     competencies: {
       Communication: 3 + (index % 3),
@@ -223,7 +240,8 @@ function studentFromTbl(row, index) {
       Creativity: 3 + (index % 2),
       Discipline: 3 + (index % 3),
       Teamwork: 2 + (index % 4),
-      Responsibility: 3 + (index % 3)
+      Responsibility: 3 + (index % 3),
+      Respect: 3 + (index % 3)
     }
   };
 }
@@ -347,7 +365,9 @@ function calculateResults(db) {
         status,
         grade: status === "Absent" ? "ABS" : status === "Exempted" ? "EX" : grade.grade,
         aggregate: status === "Captured" ? grade.aggregate : null,
-        comment: status === "Captured" ? grade.comment : status
+        comment: status === "Captured" ? grade.comment : status,
+        teacherName: db.teachers.find((teacher) => teacher.id === mark?.teacherId)?.name || "-",
+        subjectPosition: null
       };
     });
     const captured = subjects.filter((subject) => subject.status === "Captured");
@@ -373,7 +393,7 @@ function calculateResults(db) {
     };
   });
 
-  const ranked = assignRanks(students);
+  const ranked = assignSubjectRanks(assignRanks(students));
   const subjectStats = db.subjects.map((subject) => {
     const captured = db.marks.filter((mark) => mark.subjectId === subject.id && mark.status === "Captured");
     const scores = captured.map((mark) => Number(mark.score));
@@ -409,7 +429,31 @@ function calculateResults(db) {
     uploadErrors: db.uploadErrors,
     uploadBatches: enrichUploadBatches(db),
     promotionPreview: promotionPreview(db, ranked),
-    audit: db.audit
+    audit: db.audit,
+    movements: db.movements,
+    nextTerm: db.nextTerm,
+    executive: executiveAnalytics(db, ranked, monitoring)
+  };
+}
+
+function executiveAnalytics(db, students, monitoring) {
+  const averages = (items) => round(items.length ? items.reduce((sum, item) => sum + item.average, 0) / items.length : 0);
+  const summarized = (keyFn) => [...groupBy(students, keyFn)].map(([name, rows]) => ({
+    name,
+    learners: rows.length,
+    average: averages(rows),
+    promoted: rows.filter((row) => row.promotion === "PROMOTED").length
+  }));
+  return {
+    totalLearners: db.students.length,
+    activeLearners: students.length,
+    schoolAverage: averages(students),
+    promotionRate: students.length ? Math.round((students.filter((student) => student.promotion === "PROMOTED").length / students.length) * 100) : 0,
+    uploadCompletion: monitoring.completionRate,
+    subjectsSubmitted: db.subjects.filter((subject) => db.marks.some((mark) => mark.subjectId === subject.id && mark.status === "Captured")).length,
+    classComparison: summarized((student) => student.className),
+    genderAnalysis: summarized((student) => student.gender || "Not recorded"),
+    streamAnalysis: summarized((student) => student.stream || "Not recorded")
   };
 }
 
@@ -471,10 +515,34 @@ function approvePromotion(db, body = {}) {
     const student = db.students.find((item) => item.id === row.studentId);
     if (!student) continue;
     const before = student.classId;
+    const fromClass = db.classes.find((item) => item.id === before);
     if (row.decision === "PROMOTED" && row.targetClassId === "graduated") {
       student.status = "Graduated";
     } else if (row.decision === "PROMOTED") {
       student.classId = row.targetClassId;
+      const target = db.classes.find((item) => item.id === row.targetClassId);
+      if (target) {
+        student.classLevel = target.level;
+        student.stream = target.stream;
+      }
+    }
+    if (row.decision === "PROMOTED") {
+      const target = db.classes.find((item) => item.id === row.targetClassId);
+      db.movements.unshift({
+        id: `movement-${Date.now()}-${student.id}`,
+        studentId: student.id,
+        admissionNo: student.admissionNo,
+        movementType: row.targetClassId === "graduated" ? "Graduation" : "Promotion",
+        movementDate: new Date().toISOString().slice(0, 10),
+        fromClassId: before,
+        fromClass: fromClass?.level || student.classLevel,
+        fromStream: fromClass?.stream || student.stream,
+        toClassId: target?.id || "",
+        toClass: target?.level || "Graduated",
+        toStream: target?.stream || "",
+        approvedBy: body.approvedBy || "Head Teacher",
+        remarks: `Approved for ${db.promotionRules.nextAcademicYear}`
+      });
     }
     approved.push({ studentId: student.id, admissionNo: student.admissionNo, before, after: student.classId, decision: row.decision });
   }
@@ -511,7 +579,26 @@ function assignRanks(students) {
       student.streamPosition = index + 1;
     });
   }
+  for (const list of groupBy(students, (student) => `${student.className}-${student.stream}-${student.gender}`).values()) {
+    [...list].sort((a, b) => b.average - a.average || a.name.localeCompare(b.name)).forEach((student, index) => {
+      student.genderPosition = index + 1;
+    });
+  }
   return overall;
+}
+
+function assignSubjectRanks(students) {
+  for (const list of groupBy(students, (student) => `${student.className}-${student.stream}`).values()) {
+    const subjectIds = new Set(list.flatMap((student) => student.subjects.map((subject) => subject.subjectId)));
+    for (const subjectId of subjectIds) {
+      list
+        .map((student) => ({ student, subject: student.subjects.find((subject) => subject.subjectId === subjectId) }))
+        .filter((item) => item.subject?.score !== null)
+        .sort((a, b) => b.subject.score - a.subject.score || a.student.name.localeCompare(b.student.name))
+        .forEach((item, index) => { item.subject.subjectPosition = index + 1; });
+    }
+  }
+  return students;
 }
 
 function enrichDeadlines(db) {
@@ -607,14 +694,17 @@ function buildStudentRow(db, body, existing = null) {
     house: body.house || "",
     guardian: body.guardian || "",
     contact: body.contact || "",
+    alternativeContact: body.alternativeContact || existing?.alternativeContact || "",
     photo: body.photo || "",
     classId,
     status: body.status || "Active",
     admissionDate: body.admissionDate || new Date().toISOString().slice(0, 10),
     notes: body.notes || "",
     attendance: Number(body.attendance || 0),
+    attendanceDays: body.attendanceDays || existing?.attendanceDays || { present: 0, absent: 0, total: 0 },
+    activities: body.activities || existing?.activities || [],
     conduct: body.conduct || "Good",
-    competencies: existing?.competencies || { Communication: 3, Leadership: 3, Creativity: 3, Discipline: 3, Teamwork: 3, Responsibility: 3 }
+    competencies: existing?.competencies || { Communication: 3, Leadership: 3, Creativity: 3, Discipline: 3, Teamwork: 3, Responsibility: 3, Respect: 3 }
   };
 }
 
@@ -707,6 +797,110 @@ function updateStudentPhoto(db, body) {
   return student;
 }
 
+function updateStudentDetails(db, body) {
+  const student = db.students.find((item) => item.id === body.studentId || item.admissionNo === body.admissionNo);
+  if (!student) throw new Error("Student not found");
+  const editable = ["guardian", "contact", "alternativeContact", "notes", "conduct", "status"];
+  for (const field of editable) {
+    if (body[field] !== undefined) student[field] = body[field];
+  }
+  if (body.attendanceDays) {
+    const present = Math.max(0, Number(body.attendanceDays.present || 0));
+    const absent = Math.max(0, Number(body.attendanceDays.absent || 0));
+    const total = Math.max(present + absent, Number(body.attendanceDays.total || 0));
+    student.attendanceDays = { present, absent, total };
+    student.attendance = total ? Math.round((present / total) * 100) : 0;
+  }
+  if (Array.isArray(body.activities)) student.activities = body.activities.filter(Boolean);
+  db.audit.push(audit("School Admin", "Updated student profile", "-", student.admissionNo));
+  return student;
+}
+
+function addMovement(db, body) {
+  const student = db.students.find((item) => item.id === body.studentId || item.admissionNo === body.admissionNo);
+  if (!student) throw new Error("Student not found");
+  const fromClass = db.classes.find((item) => item.id === student.classId);
+  const toClass = body.toClassId ? db.classes.find((item) => item.id === body.toClassId) : null;
+  if (body.toClassId && !toClass) throw new Error("Select a valid destination class and stream");
+  const movement = {
+    id: `movement-${Date.now()}`,
+    studentId: student.id,
+    admissionNo: student.admissionNo,
+    movementType: body.movementType || "Class Change",
+    movementDate: body.movementDate || new Date().toISOString().slice(0, 10),
+    fromClassId: student.classId,
+    fromClass: fromClass?.level || student.classLevel,
+    fromStream: fromClass?.stream || student.stream,
+    toClassId: toClass?.id || "",
+    toClass: toClass?.level || "",
+    toStream: toClass?.stream || "",
+    approvedBy: body.approvedBy || "School Admin",
+    remarks: body.remarks || ""
+  };
+  if (toClass) {
+    student.classId = toClass.id;
+    student.classLevel = toClass.level;
+    student.stream = toClass.stream;
+  }
+  if (body.status && STUDENT_STATUSES.includes(body.status)) student.status = body.status;
+  db.movements.unshift(movement);
+  db.audit.push(audit(movement.approvedBy, `Recorded ${movement.movementType}`, `${movement.fromClass} ${movement.fromStream}`, `${movement.toClass} ${movement.toStream}`.trim()));
+  return movement;
+}
+
+function updateSettings(db, body) {
+  if (body.nextTerm) db.nextTerm = { ...db.nextTerm, ...body.nextTerm };
+  if (body.comments) db.comments = { ...db.comments, ...body.comments };
+  db.audit.push(audit("School Admin", "Updated report settings", "-", "Comments and next-term information"));
+  return { comments: db.comments, nextTerm: db.nextTerm };
+}
+
+function verifiedReport(db, code) {
+  const student = calculateResults(db).students.find((item) => item.verificationCode === String(code || "").trim());
+  if (!student) throw new Error("Verification code not found");
+  const publicStudent = {
+    id: student.id,
+    admissionNo: student.admissionNo,
+    studentId: student.studentId,
+    name: student.name,
+    gender: student.gender,
+    photo: student.photo,
+    className: student.className,
+    stream: student.stream,
+    status: student.status,
+    attendance: student.attendance,
+    attendanceDays: student.attendanceDays,
+    conduct: student.conduct,
+    activities: student.activities,
+    competencies: student.competencies,
+    subjects: student.subjects,
+    total: student.total,
+    average: student.average,
+    aggregate: student.aggregate,
+    overallGrade: student.overallGrade,
+    position: student.position,
+    classPosition: student.classPosition,
+    streamPosition: student.streamPosition,
+    genderPosition: student.genderPosition,
+    promotion: student.promotion,
+    verificationCode: student.verificationCode
+  };
+  return {
+    school: {
+      name: db.school.name,
+      shortName: db.school.shortName,
+      motto: db.school.motto,
+      logoUrl: db.school.logoUrl,
+      academicYear: db.school.academicYear,
+      term: db.school.term,
+      exam: db.school.exam
+    },
+    student: publicStudent,
+    nextTerm: db.nextTerm,
+    verifiedAt: new Date().toISOString()
+  };
+}
+
 function saveDeadline(db, body) {
   const id = body.id || `${body.classId}-${body.subjectId}-${slug(body.examType || db.school.exam)}`;
   const row = {
@@ -781,17 +975,18 @@ async function loadDb() {
       activeStorageMode = "supabase";
       lastStorageError = "";
       lastStorageFetchAt = new Date().toISOString();
-      return db;
+      return normalizeDb(db);
     } catch (error) {
       activeStorageMode = "json";
       lastStorageError = sanitizeStorageError(error.message);
       console.error(`Supabase read failed; using JSON fallback. ${lastStorageError}`);
     }
   }
-  return readDb();
+  return normalizeDb(readDb());
 }
 
 async function saveDb(data) {
+  normalizeDb(data);
   if (supabaseConfigured()) {
     try {
       const db = await writeSupabaseDb(data);
@@ -868,6 +1063,8 @@ async function readSupabaseDb() {
   db.promotionRules = promotionRuleRows[0]?.data || fallback.promotionRules;
   db.comments = metaRows[0]?.data?.comments || fallback.comments;
   db.activities = metaRows[0]?.data?.activities || fallback.activities;
+  db.movements = metaRows[0]?.data?.movements || fallback.movements;
+  db.nextTerm = metaRows[0]?.data?.nextTerm || fallback.nextTerm;
 
   for (const [prop, table] of COLLECTIONS) {
     const rows = await supabaseGetTable(table, "select=data");
@@ -887,7 +1084,12 @@ async function readSupabaseDb() {
 async function writeSupabaseDb(db) {
   await replaceTable("shule_app_settings", "key", [
     { key: "version", data: { version: DATA_VERSION }, updated_at: new Date().toISOString() },
-    { key: "meta", data: { comments: db.comments || {}, activities: db.activities || [] }, updated_at: new Date().toISOString() }
+    { key: "meta", data: {
+      comments: db.comments || {},
+      activities: db.activities || [],
+      movements: db.movements || [],
+      nextTerm: db.nextTerm || {}
+    }, updated_at: new Date().toISOString() }
   ]);
   await replaceTable("shule_school_profile", "id", [{
     id: "main",
@@ -998,6 +1200,31 @@ function sanitizeStorageError(message) {
   return String(message || "Unknown storage error")
     .replace(/eyJ[A-Za-z0-9._-]+/g, "[redacted-jwt]")
     .replace(/sb_(secret|publishable)_[A-Za-z0-9._-]+/g, "sb_$1_[redacted]");
+}
+
+function normalizeDb(db) {
+  const defaults = seedData();
+  db.comments = { ...defaults.comments, ...(db.comments || {}) };
+  db.activities = Array.isArray(db.activities) ? db.activities : defaults.activities;
+  db.movements = Array.isArray(db.movements) ? db.movements : [];
+  db.nextTerm = { ...defaults.nextTerm, ...(db.nextTerm || {}) };
+  db.audit = Array.isArray(db.audit) ? db.audit : [];
+  db.promotionHistory = Array.isArray(db.promotionHistory) ? db.promotionHistory : [];
+  db.students = (db.students || []).map((student) => {
+    const attendance = Math.max(0, Math.min(100, Number(student.attendance || 0)));
+    return {
+      ...student,
+      alternativeContact: student.alternativeContact || "",
+      attendanceDays: student.attendanceDays || {
+        present: Math.round(attendance * 0.6),
+        absent: Math.round((100 - attendance) * 0.6),
+        total: 60
+      },
+      activities: Array.isArray(student.activities) ? student.activities : [],
+      competencies: { Respect: 3, ...(student.competencies || {}) }
+    };
+  });
+  return db;
 }
 
 function needsDemoSeed(db) {
@@ -1129,6 +1356,7 @@ module.exports = {
   DATA_VERSION,
   STUDENT_STATUSES,
   approvePromotion,
+  addMovement,
   audit,
   calculateResults,
   loadDb,
@@ -1141,8 +1369,11 @@ module.exports = {
   sendJson,
   storageMode,
   storageStatus,
+  updateSettings,
+  updateStudentDetails,
   updateStudentPhoto,
   upsertMark,
   validateMarks,
+  verifiedReport,
   writeDb
 };

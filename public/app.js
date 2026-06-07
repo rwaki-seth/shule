@@ -27,6 +27,7 @@ const els = {
   connectionFetchTime: document.getElementById("connectionFetchTime"),
   rankingBody: document.getElementById("rankingBody"),
   schoolProfileForm: document.getElementById("schoolProfileForm"),
+  reportSettingsForm: document.getElementById("reportSettingsForm"),
   studentForm: document.getElementById("studentForm"),
   studentClassLevelSelect: document.getElementById("studentClassLevelSelect"),
   studentStreamSelect: document.getElementById("studentStreamSelect"),
@@ -70,6 +71,15 @@ const els = {
   uploadMonitorBody: document.getElementById("uploadMonitorBody"),
   auditBody: document.getElementById("auditBody"),
   subjectBars: document.getElementById("subjectBars"),
+  execTotal: document.getElementById("execTotal"),
+  execActive: document.getElementById("execActive"),
+  execAverage: document.getElementById("execAverage"),
+  execPromotion: document.getElementById("execPromotion"),
+  execUploads: document.getElementById("execUploads"),
+  execSubjects: document.getElementById("execSubjects"),
+  classComparisonBars: document.getElementById("classComparisonBars"),
+  genderAnalysis: document.getElementById("genderAnalysis"),
+  streamAnalysis: document.getElementById("streamAnalysis"),
   promotionRuleMetric: document.getElementById("promotionRuleMetric"),
   promotionPromoteMetric: document.getElementById("promotionPromoteMetric"),
   promotionReviewMetric: document.getElementById("promotionReviewMetric"),
@@ -88,6 +98,9 @@ const els = {
   moreNavButton: document.getElementById("moreNavButton"),
   closeMoreSheet: document.getElementById("closeMoreSheet"),
   reportCards: document.getElementById("reportCards"),
+  verificationForm: document.getElementById("verificationForm"),
+  verificationCodeInput: document.getElementById("verificationCodeInput"),
+  verificationContent: document.getElementById("verificationContent"),
   toast: document.getElementById("toast")
 };
 
@@ -150,6 +163,12 @@ function renderSchoolMeta() {
   setValue("schoolAddressInput", db.school.address);
   setValue("schoolLogoInput", db.school.logoUrl);
   setValue("schoolWatermarkInput", db.school.watermarkText);
+  const reportForm = els.reportSettingsForm;
+  if (reportForm) {
+    for (const [name, value] of Object.entries({ ...db.comments, ...db.nextTerm })) {
+      if (reportForm.elements[name]) reportForm.elements[name].value = value || "";
+    }
+  }
 }
 
 function renderSetup() {
@@ -280,7 +299,7 @@ function navigateTo(viewName, label) {
   document.querySelectorAll(".nav-button, .mobile-nav-button, .mobile-more-button").forEach((item) => {
     item.classList.toggle("active", item.dataset.view === navigationView);
   });
-  const secondaryView = ["setup", "monitoring", "promotion", "analytics"].includes(viewName);
+  const secondaryView = ["setup", "monitoring", "promotion", "analytics", "parentPortal"].includes(viewName);
   els.moreNavButton?.classList.toggle("active", secondaryView);
   els.pageTitle.textContent = label || document.querySelector(`[data-view="${viewName}"]`)?.textContent.trim() || viewName;
   closeMobileMoreSheet();
@@ -344,9 +363,13 @@ function renderStudentProfile() {
     ["Admission Date", student.admissionDate || "-"],
     ["Parent / Guardian", student.guardian || "-"],
     ["Parent Contact", student.contact || "-"],
+    ["Alternative Contact", student.alternativeContact || "-"],
     ["Attendance", `${Number(student.attendance || 0)}%`],
     ["Conduct", student.conduct || "-"]
   ];
+  const movements = (db.movements || []).filter((item) => item.studentId === student.id);
+  const attendance = student.attendanceDays || { present: 0, absent: 0, total: 0 };
+  const classOptions = db.classes.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join("");
   els.studentProfileContent.innerHTML = `
     <section class="student-profile-hero">
       <div class="student-profile-photo">
@@ -376,8 +399,40 @@ function renderStudentProfile() {
       <div><h3>Administrative Notes</h3><p>${escapeHtml(student.notes || "No notes recorded.")}</p></div>
       <div><h3>Competencies</h3><div class="competency-list">${Object.entries(student.competencies || {}).map(([label, value]) => `<span>${escapeHtml(label)} <strong>${escapeHtml(value)}/5</strong></span>`).join("")}</div></div>
     </section>
+    <section class="profile-workspace-grid">
+      <form id="studentDetailsForm" class="profile-form panel">
+        <div class="panel-heading"><h3>Attendance & Contacts</h3><span>Maintain the learner's current record</span></div>
+        <label>Parent / Guardian <input name="guardian" value="${escapeHtml(student.guardian || "")}"></label>
+        <label>Primary Contact <input name="contact" value="${escapeHtml(student.contact || "")}"></label>
+        <label>Alternative Contact <input name="alternativeContact" value="${escapeHtml(student.alternativeContact || "")}"></label>
+        <label>Days Present <input name="present" type="number" min="0" value="${attendance.present || 0}"></label>
+        <label>Days Absent <input name="absent" type="number" min="0" value="${attendance.absent || 0}"></label>
+        <label>Total School Days <input name="total" type="number" min="0" value="${attendance.total || 0}"></label>
+        <label>Activities <input name="activities" value="${escapeHtml((student.activities || []).join(", "))}" placeholder="Debate, Football"></label>
+        <label>Notes <textarea name="notes">${escapeHtml(student.notes || "")}</textarea></label>
+        <button type="submit">Save Student Details</button>
+      </form>
+      <form id="studentMovementForm" class="profile-form panel">
+        <div class="panel-heading"><h3>Record Movement</h3><span>Class, stream, transfer, or status change</span></div>
+        <label>Movement Type <select name="movementType"><option>Class Change</option><option>Stream Change</option><option>Transfer</option><option>Repeat</option><option>Promotion</option><option>Status Change</option></select></label>
+        <label>Destination Class & Stream <select name="toClassId"><option value="">No class change</option>${classOptions}</select></label>
+        <label>New Status <select name="status"><option value="">Keep current status</option>${STATUS_OPTIONS.map((status) => `<option>${status}</option>`).join("")}</select></label>
+        <label>Movement Date <input name="movementDate" type="date" value="${new Date().toISOString().slice(0, 10)}"></label>
+        <label>Approved By <input name="approvedBy" value="School Admin"></label>
+        <label>Remarks <textarea name="remarks"></textarea></label>
+        <button type="submit">Record Movement</button>
+      </form>
+    </section>
+    <section class="profile-detail-band">
+      <div class="panel-heading"><h3>Learner Journey</h3><span>${movements.length} movement record(s)</span></div>
+      <div class="journey-timeline">
+        ${movements.length ? movements.map((movement) => `<article><time>${escapeHtml(movement.movementDate)}</time><div><strong>${escapeHtml(movement.movementType)}</strong><span>${escapeHtml(`${movement.fromClass || "-"} ${movement.fromStream || ""} to ${movement.toClass || "-"} ${movement.toStream || ""}`)}</span><small>${escapeHtml(movement.approvedBy)}${movement.remarks ? ` | ${escapeHtml(movement.remarks)}` : ""}</small></div></article>`).join("") : `<div class="empty-state">No movement history has been recorded yet.</div>`}
+      </div>
+    </section>
   `;
   document.getElementById("profilePhotoInput")?.addEventListener("change", updateProfilePhoto);
+  document.getElementById("studentDetailsForm")?.addEventListener("submit", saveStudentDetails);
+  document.getElementById("studentMovementForm")?.addEventListener("submit", saveStudentMovement);
 }
 
 function renderMarksEntry() {
@@ -471,6 +526,16 @@ function renderPromotion() {
 }
 
 function renderAnalytics() {
+  const executive = results.executive || {};
+  els.execTotal.textContent = executive.totalLearners || 0;
+  els.execActive.textContent = executive.activeLearners || 0;
+  els.execAverage.textContent = executive.schoolAverage || 0;
+  els.execPromotion.textContent = `${executive.promotionRate || 0}%`;
+  els.execUploads.textContent = `${executive.uploadCompletion || 0}%`;
+  els.execSubjects.textContent = `${executive.subjectsSubmitted || 0}/${results.counts.subjects}`;
+  els.classComparisonBars.innerHTML = renderSummaryBars(executive.classComparison || []);
+  els.genderAnalysis.innerHTML = renderSummaryList(executive.genderAnalysis || []);
+  els.streamAnalysis.innerHTML = renderSummaryList(executive.streamAnalysis || []);
   const maxAverage = Math.max(...results.subjectStats.map((subject) => subject.average), 100);
   els.subjectBars.innerHTML = results.subjectStats.map((subject) => `
     <div class="bar-row">
@@ -478,6 +543,22 @@ function renderAnalytics() {
       <div class="bar-track"><span style="width:${Math.max(4, (subject.average / maxAverage) * 100)}%"></span></div>
       <strong>${subject.average}</strong>
     </div>
+  `).join("");
+}
+
+function renderSummaryBars(items) {
+  return items.map((item) => `
+    <div class="bar-row">
+      <div><strong>${escapeHtml(item.name)}</strong><span>${item.learners} learners | ${item.promoted} promoted</span></div>
+      <div class="bar-track"><span style="width:${Math.max(4, item.average)}%"></span></div>
+      <strong>${item.average}</strong>
+    </div>
+  `).join("");
+}
+
+function renderSummaryList(items) {
+  return items.map((item) => `
+    <article><div><strong>${escapeHtml(item.name)}</strong><span>${item.learners} learners</span></div><div><strong>${item.average}</strong><span>average</span></div><div><strong>${item.promoted}</strong><span>promoted</span></div></article>
   `).join("");
 }
 
@@ -535,7 +616,7 @@ function renderReportPageOne(student) {
           <p>${escapeHtml(results.school.motto)}</p>
           <small>${escapeHtml(results.school.address)} | ${escapeHtml(results.school.phone)} | ${escapeHtml(results.school.email)}</small>
         </div>
-        <div class="qr-box">QR<br>${escapeHtml(student.verificationCode.slice(-6))}</div>
+        <div class="qr-box"><img src="/api/qr?code=${encodeURIComponent(student.verificationCode)}" alt="Report verification QR code"><small>${escapeHtml(student.verificationCode.slice(-6))}</small></div>
       </header>
       <div class="report-title">Learner Academic Report</div>
       <section class="student-strip">
@@ -548,8 +629,8 @@ function renderReportPageOne(student) {
       </section>
       <div class="report-table-scroll">
         <table class="report-table">
-          <thead><tr><th>Subject</th><th>BOT</th><th>Mid</th><th>End</th><th>Final</th><th>Grade</th><th>Agg.</th><th>Comment</th></tr></thead>
-          <tbody>${student.subjects.map((subject) => `<tr><td>${escapeHtml(subject.subjectName)}</td><td>${valueOrDash(subject.bot)}</td><td>${valueOrDash(subject.mid)}</td><td>${valueOrDash(subject.end)}</td><td>${valueOrDash(subject.score)}</td><td>${subject.grade}</td><td>${valueOrDash(subject.aggregate)}</td><td>${escapeHtml(subject.comment)}</td></tr>`).join("")}</tbody>
+          <thead><tr><th>Subject</th><th>BOT</th><th>Mid</th><th>End</th><th>Final</th><th>Grade</th><th>Agg.</th><th>Rank</th><th>Teacher</th><th>Comment</th></tr></thead>
+          <tbody>${student.subjects.map((subject) => `<tr><td>${escapeHtml(subject.subjectName)}</td><td>${valueOrDash(subject.bot)}</td><td>${valueOrDash(subject.mid)}</td><td>${valueOrDash(subject.end)}</td><td>${valueOrDash(subject.score)}</td><td>${subject.grade}</td><td>${valueOrDash(subject.aggregate)}</td><td>${valueOrDash(subject.subjectPosition)}</td><td>${escapeHtml(subject.teacherName)}</td><td>${escapeHtml(subject.comment)}</td></tr>`).join("")}</tbody>
         </table>
       </div>
       <section class="kpi-strip">
@@ -559,6 +640,7 @@ function renderReportPageOne(student) {
         <div><span>Aggregate</span><strong>${student.aggregate}</strong></div>
         <div><span>Stream Pos.</span><strong>${student.streamPosition}</strong></div>
         <div><span>Class Pos.</span><strong>${student.classPosition}</strong></div>
+        <div><span>Gender Pos.</span><strong>${student.genderPosition || "-"}</strong></div>
       </section>
       <div class="promotion-banner ${promotionClass(student.promotion)}">${student.promotion}</div>
       ${reportFooter(student)}
@@ -573,8 +655,8 @@ function renderReportPageTwo(student) {
       <div class="analytics-grid">
         <div class="chart-card"><h3>Subject Performance</h3>${student.subjects.slice(0, 8).map((subject) => `<div class="mini-bar"><span>${escapeHtml(subject.code)}</span><b style="width:${subject.score || 8}%"></b><em>${valueOrDash(subject.score)}</em></div>`).join("")}</div>
         <div class="chart-card"><h3>Term Trend</h3><div class="trend-line"><span style="height:45%"></span><span style="height:62%"></span><span style="height:${Math.max(10, student.average)}%"></span></div><p>Beginning, mid, and end term trend indicator.</p></div>
-        <div class="chart-card"><h3>Attendance Analytics</h3><div class="donut" style="--value:${student.attendance}">${student.attendance}%</div></div>
-        <div class="chart-card"><h3>Competency Ratings</h3>${Object.entries(student.competencies || {}).map(([label, value]) => `<div class="rating-row"><span>${escapeHtml(label)}</span><strong>${value}/5</strong></div>`).join("")}</div>
+        <div class="chart-card"><h3>Attendance Analytics</h3><div class="donut" style="--value:${student.attendance}">${student.attendance}%</div><div class="attendance-facts"><span>${student.attendanceDays?.present || 0} present</span><span>${student.attendanceDays?.absent || 0} absent</span><span>${student.attendanceDays?.total || 0} days</span></div></div>
+        <div class="chart-card"><h3>Competency Ratings</h3>${Object.entries(student.competencies || {}).map(([label, value]) => `<div class="rating-row"><span>${escapeHtml(label)}</span><strong class="rating-stars">${"&#9733;".repeat(Number(value || 0))}${"&#9734;".repeat(Math.max(0, 5 - Number(value || 0)))}</strong></div>`).join("")}</div>
       </div>
       ${reportFooter(student)}
     </section>
@@ -586,11 +668,20 @@ function renderReportPageThree(student) {
     <section class="report-page">
       <div class="report-subhead"><h2>Comments, Matrix & Verification</h2><span>${escapeHtml(student.verificationCode)}</span></div>
       <div class="comment-grid">
+        <div><h3>Subject Teacher Comment</h3><p>${escapeHtml(db.comments.subjectTeacher)}</p></div>
         <div><h3>Class Teacher Comment</h3><p>${escapeHtml(db.comments.teacher)}</p></div>
+        <div><h3>Director of Studies Comment</h3><p>${escapeHtml(db.comments.dos)}</p></div>
         <div><h3>Head Teacher Comment</h3><p>${escapeHtml(db.comments.headteacher)}</p></div>
-        <div><h3>Co-Curricular Activities</h3><p>${escapeHtml(db.activities.join(", "))}</p></div>
+        <div><h3>Co-Curricular Activities</h3><p>${escapeHtml((student.activities?.length ? student.activities : db.activities).join(", "))}</p></div>
         <div><h3>Student Conduct</h3><p>${escapeHtml(student.conduct)}</p></div>
       </div>
+      <section class="next-term-grid">
+        <div><span>Next Term Opens</span><strong>${escapeHtml(db.nextTerm.openingDate || "-")}</strong></div>
+        <div><span>Next Term Closes</span><strong>${escapeHtml(db.nextTerm.closingDate || "-")}</strong></div>
+        <div><span>Fees / Account Note</span><strong>${escapeHtml(db.nextTerm.feesBalance || "-")}</strong></div>
+        <div><span>Requirements</span><strong>${escapeHtml(db.nextTerm.requirements || "-")}</strong></div>
+        <div><span>Special Notes</span><strong>${escapeHtml(db.nextTerm.specialNotes || "-")}</strong></div>
+      </section>
       <h3 class="matrix-heading">Grading Matrix</h3>
       <div class="report-table-scroll">
         <table class="report-table grading-matrix">
@@ -619,6 +710,31 @@ async function saveSchoolProfile(event) {
   const body = Object.fromEntries(new FormData(els.schoolProfileForm).entries());
   await api("/api/school", { method: "POST", body: JSON.stringify(body) });
   toast("School profile saved");
+  await loadData();
+}
+
+async function saveReportSettings(event) {
+  event.preventDefault();
+  const values = Object.fromEntries(new FormData(event.currentTarget).entries());
+  await api("/api/settings", {
+    method: "POST",
+    body: JSON.stringify({
+      comments: {
+        subjectTeacher: values.subjectTeacher,
+        teacher: values.teacher,
+        dos: values.dos,
+        headteacher: values.headteacher
+      },
+      nextTerm: {
+        openingDate: values.openingDate,
+        closingDate: values.closingDate,
+        feesBalance: values.feesBalance,
+        requirements: values.requirements,
+        specialNotes: values.specialNotes
+      }
+    })
+  });
+  toast("Report settings saved");
   await loadData();
 }
 
@@ -745,6 +861,39 @@ async function updateProfilePhoto(event) {
   }
 }
 
+async function saveStudentDetails(event) {
+  event.preventDefault();
+  const values = Object.fromEntries(new FormData(event.currentTarget).entries());
+  await api("/api/students", {
+    method: "POST",
+    body: JSON.stringify({
+      action: "updateDetails",
+      studentId: selectedProfileStudentId,
+      guardian: values.guardian,
+      contact: values.contact,
+      alternativeContact: values.alternativeContact,
+      notes: values.notes,
+      activities: String(values.activities || "").split(",").map((item) => item.trim()).filter(Boolean),
+      attendanceDays: {
+        present: Number(values.present || 0),
+        absent: Number(values.absent || 0),
+        total: Number(values.total || 0)
+      }
+    })
+  });
+  toast("Student details updated");
+  await loadData();
+}
+
+async function saveStudentMovement(event) {
+  event.preventDefault();
+  const body = Object.fromEntries(new FormData(event.currentTarget).entries());
+  body.studentId = selectedProfileStudentId;
+  await api("/api/movements", { method: "POST", body: JSON.stringify(body) });
+  toast("Student movement recorded");
+  await loadData();
+}
+
 function openProfileAcademicReport() {
   const student = db.students.find((item) => item.id === selectedProfileStudentId);
   if (!student) return;
@@ -757,10 +906,51 @@ function openProfileAcademicReport() {
 }
 
 function applyUrlRoute() {
-  const match = window.location.hash.match(/^#student\/(.+)$/);
-  if (!match) return;
-  const studentId = decodeURIComponent(match[1]);
-  if (db.students.some((item) => item.id === studentId)) openStudentProfile(studentId);
+  const studentMatch = window.location.hash.match(/^#student\/(.+)$/);
+  if (studentMatch) {
+    const studentId = decodeURIComponent(studentMatch[1]);
+    if (db.students.some((item) => item.id === studentId)) openStudentProfile(studentId);
+    return;
+  }
+  const verifyMatch = window.location.hash.match(/^#verify\/(.+)$/);
+  if (verifyMatch) {
+    els.verificationCodeInput.value = decodeURIComponent(verifyMatch[1]);
+    navigateTo("parentPortal", "Verify Report");
+    verifyReport().catch((error) => toast(error.message));
+  }
+}
+
+async function verifyReport(event) {
+  event?.preventDefault();
+  const code = els.verificationCodeInput.value.trim();
+  if (!code) return;
+  els.verificationContent.innerHTML = `<div class="empty-state">Checking the report...</div>`;
+  try {
+    const verified = await api(`/api/verify?code=${encodeURIComponent(code)}`);
+    const student = verified.student;
+    window.history.replaceState(null, "", `#verify/${encodeURIComponent(code)}`);
+    els.verificationContent.innerHTML = `
+      <section class="verified-banner"><strong>Verified Official Report</strong><span>Checked ${formatDate(verified.verifiedAt)}</span></section>
+      <section class="verified-student-card">
+        <div class="student-profile-photo">${student.photo ? `<img src="${escapeHtml(student.photo)}" alt="${escapeHtml(student.name)}">` : `<span>${escapeHtml(student.name.split(/\s+/).map((part) => part[0]).slice(0, 2).join(""))}</span>`}</div>
+        <div><span>${escapeHtml(student.admissionNo)}</span><h2>${escapeHtml(student.name)}</h2><p>${escapeHtml(student.className)} ${escapeHtml(student.stream)} | ${escapeHtml(verified.school.term)} ${escapeHtml(verified.school.academicYear)}</p></div>
+        <div class="verified-score"><span>Average</span><strong>${student.average}</strong><small>${escapeHtml(student.overallGrade)}</small></div>
+      </section>
+      <section class="verified-summary-grid">
+        <div><span>Class Position</span><strong>${student.classPosition}</strong></div>
+        <div><span>Stream Position</span><strong>${student.streamPosition}</strong></div>
+        <div><span>Aggregate</span><strong>${student.aggregate}</strong></div>
+        <div><span>Promotion</span><strong>${escapeHtml(student.promotion)}</strong></div>
+      </section>
+      <section class="panel">
+        <div class="panel-heading"><h2>Subject Results</h2><span>${escapeHtml(verified.school.name)}</span></div>
+        <div class="verified-subject-list">${student.subjects.map((subject) => `<article><div><strong>${escapeHtml(subject.subjectName)}</strong><span>${escapeHtml(subject.teacherName)}</span></div><strong>${valueOrDash(subject.score)}</strong><span>${escapeHtml(subject.grade)}</span></article>`).join("")}</div>
+      </section>
+    `;
+  } catch (error) {
+    els.verificationContent.innerHTML = `<div class="verification-failed"><strong>Verification Failed</strong><span>${escapeHtml(error.message)}</span></div>`;
+    throw error;
+  }
 }
 
 function compressImage(file) {
@@ -1059,6 +1249,7 @@ els.closeMoreSheet.addEventListener("click", closeMobileMoreSheet);
 els.mobileSheetBackdrop.addEventListener("click", closeMobileMoreSheet);
 
 els.schoolProfileForm.addEventListener("submit", saveSchoolProfile);
+els.reportSettingsForm?.addEventListener("submit", saveReportSettings);
 els.studentForm.addEventListener("submit", saveStudent);
 els.downloadStudentTemplateBtn.addEventListener("click", downloadStudentTemplate);
 els.downloadStudentErrorsBtn.addEventListener("click", downloadStudentErrorReport);
@@ -1109,6 +1300,7 @@ els.viewStudentReportBtn.addEventListener("click", viewStudentReport);
 els.printStudentReportBtn.addEventListener("click", printStudentReport);
 els.printClassReportsBtn.addEventListener("click", printClassReports);
 els.mobileReportDownloadBtn.addEventListener("click", printStudentReport);
+els.verificationForm?.addEventListener("submit", verifyReport);
 window.addEventListener("afterprint", () => {
   document.body.classList.remove("print-class", "print-student");
   reportMode = "student";

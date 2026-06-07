@@ -24,6 +24,7 @@
         <button class="nav-button" data-view="promotion">Promotion</button>
         <button class="nav-button" data-view="analytics">Analytics</button>
         <button class="nav-button" data-view="reports">Reports</button>
+        <button class="nav-button" data-view="parentPortal">Verify Report</button>
       </nav>
     </aside>
 
@@ -118,6 +119,25 @@
             <label>Logo URL <input name="logoUrl" id="schoolLogoInput"></label>
             <label>Watermark <input name="watermarkText" id="schoolWatermarkInput"></label>
             <button type="submit">Save School Profile</button>
+          </form>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Report Settings</h2>
+            <span>Comments and next-term information used on official learner reports</span>
+          </div>
+          <form id="reportSettingsForm" class="form-grid">
+            <label>Subject Teacher Comment <textarea name="subjectTeacher"></textarea></label>
+            <label>Class Teacher Comment <textarea name="teacher"></textarea></label>
+            <label>Director of Studies Comment <textarea name="dos"></textarea></label>
+            <label>Head Teacher Comment <textarea name="headteacher"></textarea></label>
+            <label>Next Term Opens <input name="openingDate" type="date"></label>
+            <label>Next Term Closes <input name="closingDate" type="date"></label>
+            <label>Fees / Account Note <textarea name="feesBalance"></textarea></label>
+            <label>Requirements <textarea name="requirements"></textarea></label>
+            <label>Special Notes <textarea name="specialNotes"></textarea></label>
+            <button type="submit">Save Report Settings</button>
           </form>
         </section>
 
@@ -341,6 +361,19 @@
       </section>
 
       <section id="analytics" class="view">
+        <div class="metric-grid executive-metrics">
+          <article class="metric"><span>Total Learners</span><strong id="execTotal">0</strong></article>
+          <article class="metric"><span>Active Learners</span><strong id="execActive">0</strong></article>
+          <article class="metric"><span>School Average</span><strong id="execAverage">0</strong></article>
+          <article class="metric status-complete"><span>Promotion Rate</span><strong id="execPromotion">0%</strong></article>
+          <article class="metric"><span>Upload Completion</span><strong id="execUploads">0%</strong></article>
+          <article class="metric"><span>Subjects Submitted</span><strong id="execSubjects">0</strong></article>
+        </div>
+        <div class="analytics-summary-grid">
+          <section class="panel"><div class="panel-heading"><h2>Class Comparison</h2><span>Average by class</span></div><div id="classComparisonBars" class="bar-list"></div></section>
+          <section class="panel"><div class="panel-heading"><h2>Gender Analysis</h2><span>Participation and performance</span></div><div id="genderAnalysis" class="summary-list"></div></section>
+          <section class="panel"><div class="panel-heading"><h2>Stream Analysis</h2><span>East and West comparison</span></div><div id="streamAnalysis" class="summary-list"></div></section>
+        </div>
         <section class="panel">
           <div class="panel-heading">
             <h2>Subject Statistics</h2>
@@ -367,6 +400,21 @@
         </section>
         <button id="mobileReportDownloadBtn" class="mobile-report-action">Download PDF</button>
       </section>
+
+      <section id="parentPortal" class="view">
+        <section class="verification-hero">
+          <div>
+            <p class="eyebrow">Parent & Guardian Access</p>
+            <h2>Verify a Learner Report</h2>
+            <p>Enter the verification code printed on the report card to view the official online result.</p>
+          </div>
+          <form id="verificationForm" class="verification-form">
+            <label>Verification Code <input id="verificationCodeInput" required placeholder="MJA-2026-..."></label>
+            <button type="submit">Verify Report</button>
+          </form>
+        </section>
+        <section id="verificationContent" class="verification-content"></section>
+      </section>
     </main>
 
     <nav class="mobile-bottom-nav" aria-label="Primary navigation">
@@ -388,6 +436,7 @@
         <button class="mobile-more-button" data-view="monitoring">Monitoring</button>
         <button class="mobile-more-button" data-view="promotion">Promotion</button>
         <button class="mobile-more-button" data-view="analytics">Analytics</button>
+        <button class="mobile-more-button" data-view="parentPortal">Verify Report</button>
       </div>
     </aside>
 
