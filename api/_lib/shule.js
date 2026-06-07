@@ -739,7 +739,8 @@ function addStudent(db, body) {
   return studentRow;
 }
 
-function importStudents(db, body) {
+function importStudents(db, body, options = {}) {
+  const commit = options.commit !== false;
   const rows = Array.isArray(body.students) ? body.students : [];
   if (!rows.length) throw new Error("No student rows were supplied");
   if (rows.length > 1000) throw new Error("A class-list upload cannot exceed 1,000 students");
@@ -764,6 +765,9 @@ function importStudents(db, body) {
 
     const existing = db.students.find((student) => student.admissionNo.toLowerCase() === key);
     try {
+      if (body.mixedClasses && (!String(input.classLevel || "").trim() || !String(input.stream || "").trim())) {
+        throw new Error("Class and stream are required on every row for a multiple-class upload");
+      }
       const supplied = Object.fromEntries(Object.entries(input).filter(([field, value]) =>
         field === "rowNumber" || (value !== null && value !== undefined && String(value).trim() !== "")
       ));
@@ -786,19 +790,84 @@ function importStudents(db, body) {
 
   if (errors.length) return { ok: false, errors, created: 0, updated: 0 };
 
-  let created = 0;
-  let updated = 0;
+  const created = prepared.filter((item) => !item.existing).length;
+  const updated = prepared.length - created;
+  const classBreakdown = [...prepared.reduce((groups, { studentRow }) => {
+    const label = `${studentRow.classLevel} ${studentRow.stream}`.trim();
+    groups.set(label, (groups.get(label) || 0) + 1);
+    return groups;
+  }, new Map())].map(([className, count]) => ({ className, count }));
+
+  if (!commit) {
+    return {
+      ok: true,
+      errors: [],
+      created,
+      updated,
+      total: prepared.length,
+      classBreakdown,
+      preview: prepared.slice(0, 25).map(({ existing, studentRow }) => ({
+        rowNumber: rows.find((row) => String(row.admissionNo || row.studentId || "").trim().toLowerCase() === studentRow.admissionNo.toLowerCase())?.rowNumber || "",
+        admissionNo: studentRow.admissionNo,
+        name: studentRow.name,
+        classLevel: studentRow.classLevel,
+        stream: studentRow.stream,
+        action: existing ? "Update" : "Create"
+      }))
+    };
+  }
+
   for (const { existing, studentRow } of prepared) {
     if (existing) {
       Object.assign(existing, studentRow);
-      updated += 1;
     } else {
       db.students.push(studentRow);
-      created += 1;
     }
   }
   db.audit.push(audit("School Admin", "Imported student class list", "-", `${created} created, ${updated} updated`));
-  return { ok: true, errors: [], created, updated, total: prepared.length };
+  return { ok: true, errors: [], created, updated, total: prepared.length, classBreakdown };
+}
+
+function ensureTeacher(db, body) {
+  const email = String(body.email || "").trim().toLowerCase();
+  if (!email) throw new Error("Teacher email is required");
+  let teacherRow = db.teachers.find((item) => String(item.email || "").trim().toLowerCase() === email);
+  if (!teacherRow) {
+    teacherRow = {
+      id: body.id || `teacher-${slug(email)}`,
+      name: String(body.name || email).trim(),
+      role: body.role || "Subject Teacher",
+      email,
+      active: true
+    };
+    db.teachers.push(teacherRow);
+    db.audit.push(audit("Super Admin", "Created teacher profile", "-", teacherRow.email));
+  } else {
+    teacherRow.name = String(body.name || teacherRow.name).trim();
+    teacherRow.role = body.role || teacherRow.role;
+    teacherRow.active = true;
+  }
+  return teacherRow;
+}
+
+function saveTeacherAssignment(db, body) {
+  const teacherId = String(body.teacherId || "");
+  const classId = String(body.classId || "");
+  const subjectId = String(body.subjectId || "");
+  if (!db.teachers.some((item) => item.id === teacherId)) throw new Error("Select a valid teacher");
+  if (!db.classes.some((item) => item.id === classId)) throw new Error("Select a valid class and stream");
+  if (!db.subjects.some((item) => item.id === subjectId)) throw new Error("Select a valid subject");
+  const existing = db.teacherAssignments.find((item) =>
+    item.teacherId === teacherId && item.classId === classId && item.subjectId === subjectId
+  );
+  if (existing) {
+    existing.active = true;
+    return existing;
+  }
+  const assignmentRow = assignment(teacherId, classId, subjectId);
+  db.teacherAssignments.push(assignmentRow);
+  db.audit.push(audit("School Admin", "Assigned teacher", "-", `${teacherId} / ${classId} / ${subjectId}`));
+  return assignmentRow;
 }
 
 function updateStudentPhoto(db, body) {
@@ -1389,8 +1458,10 @@ module.exports = {
   loadDb,
   readDb,
   addStudent,
+  ensureTeacher,
   importStudents,
   saveDeadline,
+  saveTeacherAssignment,
   saveDb,
   sendError,
   sendJson,

@@ -9,6 +9,10 @@ let latestStudentImportErrors = [];
 let connectionStatus = { configured: false, mode: "checking", lastError: "" };
 let currentUser = null;
 let staffUsers = [];
+let pendingStudentImport = null;
+let pendingMarksImport = null;
+let selectedAnalyticsClass = "";
+let selectedAnalyticsStream = "All";
 
 const STATUS_OPTIONS = ["Active", "Graduated", "Transferred", "Suspended", "Expelled", "Dropped Out", "Deceased", "Inactive"];
 
@@ -49,14 +53,23 @@ const els = {
   studentStatusSelect: document.getElementById("studentStatusSelect"),
   importClassLevelSelect: document.getElementById("importClassLevelSelect"),
   importStreamSelect: document.getElementById("importStreamSelect"),
+  studentImportModeSelect: document.getElementById("studentImportModeSelect"),
   studentCsvInput: document.getElementById("studentCsvInput"),
   downloadStudentTemplateBtn: document.getElementById("downloadStudentTemplateBtn"),
   downloadStudentErrorsBtn: document.getElementById("downloadStudentErrorsBtn"),
+  uploadStudentCsvBtn: document.getElementById("uploadStudentCsvBtn"),
+  cancelStudentImportBtn: document.getElementById("cancelStudentImportBtn"),
   studentImportSummary: document.getElementById("studentImportSummary"),
   studentImportErrors: document.getElementById("studentImportErrors"),
+  studentImportPreview: document.getElementById("studentImportPreview"),
+  studentImportPanel: document.getElementById("studentImportPanel"),
+  studentCreatePanel: document.getElementById("studentCreatePanel"),
   newStudentPhotoInput: document.getElementById("newStudentPhotoInput"),
   studentCountLabel: document.getElementById("studentCountLabel"),
   studentRegisterBody: document.getElementById("studentRegisterBody"),
+  studentFilterClassSelect: document.getElementById("studentFilterClassSelect"),
+  studentFilterStreamSelect: document.getElementById("studentFilterStreamSelect"),
+  downloadStudentListBtn: document.getElementById("downloadStudentListBtn"),
   studentProfileContent: document.getElementById("studentProfileContent"),
   backToStudentsBtn: document.getElementById("backToStudentsBtn"),
   studentProfileReportBtn: document.getElementById("studentProfileReportBtn"),
@@ -66,12 +79,14 @@ const els = {
   marksClassLevelSelect: document.getElementById("marksClassLevelSelect"),
   marksStreamSelect: document.getElementById("marksStreamSelect"),
   marksTeacherSelect: document.getElementById("marksTeacherSelect"),
+  marksImportModeSelect: document.getElementById("marksImportModeSelect"),
   subjectSelect: document.getElementById("subjectSelect"),
   marksBody: document.getElementById("marksBody"),
   saveMarksBtn: document.getElementById("saveMarksBtn"),
   csvInput: document.getElementById("csvInput"),
   downloadTemplateBtn: document.getElementById("downloadTemplateBtn"),
   downloadErrorsBtn: document.getElementById("downloadErrorsBtn"),
+  uploadMarksCsvBtn: document.getElementById("uploadMarksCsvBtn"),
   uploadSummary: document.getElementById("uploadSummary"),
   uploadErrors: document.getElementById("uploadErrors"),
   metricExpected: document.getElementById("metricExpected"),
@@ -95,6 +110,11 @@ const els = {
   classComparisonBars: document.getElementById("classComparisonBars"),
   genderAnalysis: document.getElementById("genderAnalysis"),
   streamAnalysis: document.getElementById("streamAnalysis"),
+  analyticsClassSelect: document.getElementById("analyticsClassSelect"),
+  analyticsStreamSelect: document.getElementById("analyticsStreamSelect"),
+  analyticsLearnerList: document.getElementById("analyticsLearnerList"),
+  analyticsDrillTitle: document.getElementById("analyticsDrillTitle"),
+  downloadAnalyticsLearnersBtn: document.getElementById("downloadAnalyticsLearnersBtn"),
   promotionRuleMetric: document.getElementById("promotionRuleMetric"),
   promotionPromoteMetric: document.getElementById("promotionPromoteMetric"),
   promotionReviewMetric: document.getElementById("promotionReviewMetric"),
@@ -119,6 +139,10 @@ const els = {
   userForm: document.getElementById("userForm"),
   userList: document.getElementById("userList"),
   userCountLabel: document.getElementById("userCountLabel"),
+  teacherAssignmentForm: document.getElementById("teacherAssignmentForm"),
+  assignmentTeacherSelect: document.getElementById("assignmentTeacherSelect"),
+  assignmentClassSelect: document.getElementById("assignmentClassSelect"),
+  assignmentSubjectSelect: document.getElementById("assignmentSubjectSelect"),
   toast: document.getElementById("toast")
 };
 
@@ -146,6 +170,12 @@ async function loadData() {
   }
   try {
     db = await api("/api/bootstrap");
+    currentUser = db.currentUser || currentUser;
+    if (currentUser) {
+      els.currentUserRole.textContent = `${currentUser.name} | ${currentUser.role}`;
+      applyRoleAccess();
+      if (currentUser.assignmentWarning) toast(currentUser.assignmentWarning);
+    }
     results = await api("/api/results");
     connectionStatus = await api("/api/storage-status");
     renderAll();
@@ -212,6 +242,20 @@ function applyRoleAccess() {
   const firstView = allowed.has("dashboard") ? "dashboard" : [...allowed][0];
   const active = document.querySelector(".view.active");
   if (!active || (!allowed.has(active.id) && active.id !== "studentProfile")) navigateTo(firstView, null);
+  const canManageStudents = hasRole("Super Admin", "School Admin");
+  if (els.studentImportPanel) els.studentImportPanel.hidden = !canManageStudents;
+  if (els.studentCreatePanel) els.studentCreatePanel.hidden = !canManageStudents;
+  if (els.teacherAssignmentForm) els.teacherAssignmentForm.hidden = !canManageStudents;
+  if (els.marksImportModeSelect) {
+    const multiOption = els.marksImportModeSelect.querySelector('option[value="multi"]');
+    if (multiOption) multiOption.disabled = !canManageStudents;
+    if (!canManageStudents) els.marksImportModeSelect.value = "single";
+  }
+  if (els.studentProfileReportBtn) els.studentProfileReportBtn.hidden = !allowed.has("reports");
+}
+
+function hasRole(...roles) {
+  return roles.includes(currentUser?.role);
 }
 
 function renderAll() {
@@ -280,24 +324,39 @@ function renderSelects() {
   const years = db.academicYears.map((item) => `<option value="${item.name}">${escapeHtml(item.name)}</option>`).join("");
   const terms = db.terms.map((item) => `<option value="${item.name}">${escapeHtml(item.name)}</option>`).join("");
   const exams = db.examTypes.map((item) => `<option value="${item.name}">${escapeHtml(item.name)}</option>`).join("");
-  const levels = db.classLevels.map((item) => `<option value="${item.name}">${escapeHtml(item.name)}</option>`).join("");
-  const streams = db.streams.map((item) => `<option value="${item.name}">${escapeHtml(item.name)}</option>`).join("");
+  const allowedLevels = [...new Set(db.classes.map((item) => item.level))];
+  const allowedStreams = [...new Set(db.classes.map((item) => item.stream))];
+  const levels = allowedLevels.map((name) => `<option value="${name}">${escapeHtml(name)}</option>`).join("");
+  const streams = allowedStreams.map((name) => `<option value="${name}">${escapeHtml(name)}</option>`).join("");
   const subjects = db.subjects.map((subject) => `<option value="${subject.id}">${escapeHtml(subject.code)} - ${escapeHtml(subject.name)}</option>`).join("");
   const teachers = db.teachers.map((teacher) => `<option value="${teacher.id}">${escapeHtml(teacher.name)} (${escapeHtml(teacher.role)})</option>`).join("");
+  const teacherRole = hasRole("Class Teacher", "Subject Teacher");
+  const markSubjectRows = teacherRole
+    ? db.subjects.filter((subject) => currentUser.assignedSubjectIds?.includes(subject.id))
+    : db.subjects;
+  const markTeacherRows = teacherRole
+    ? db.teachers.filter((teacher) => teacher.id === currentUser.teacherId)
+    : db.teachers;
+  const markSubjects = markSubjectRows.map((subject) => `<option value="${subject.id}">${escapeHtml(subject.code)} - ${escapeHtml(subject.name)}</option>`).join("");
+  const markTeachers = markTeacherRows.map((teacher) => `<option value="${teacher.id}">${escapeHtml(teacher.name)} (${escapeHtml(teacher.role)})</option>`).join("");
 
-  setOptions(els.studentClassLevelSelect, levels, "P6");
-  setOptions(els.studentStreamSelect, streams, "East");
-  setOptions(els.importClassLevelSelect, levels, "P6");
-  setOptions(els.importStreamSelect, streams, "East");
+  setOptions(els.studentClassLevelSelect, levels, allowedLevels[0]);
+  setOptions(els.studentStreamSelect, streams, allowedStreams[0]);
+  setOptions(els.importClassLevelSelect, levels, allowedLevels[0]);
+  setOptions(els.importStreamSelect, streams, allowedStreams[0]);
   els.studentStatusSelect.innerHTML = STATUS_OPTIONS.map((status) => `<option>${status}</option>`).join("");
+  setOptions(els.studentFilterClassSelect, `<option value="All">All classes</option>${levels}`, "All");
+  setOptions(els.studentFilterStreamSelect, `<option value="All">All streams</option>${streams}`, "All");
 
   setOptions(els.marksAcademicYearSelect, years, db.school.academicYear);
   setOptions(els.marksTermSelect, terms, db.school.term);
   setOptions(els.marksExamTypeSelect, exams, db.school.exam);
-  setOptions(els.marksClassLevelSelect, levels, "P6");
-  setOptions(els.marksStreamSelect, streams, "East");
-  setOptions(els.subjectSelect, subjects, "eng");
-  setOptions(els.marksTeacherSelect, teachers, assignedTeacherId(currentMarksClassId(), els.subjectSelect.value) || db.teachers[0]?.id);
+  setOptions(els.marksClassLevelSelect, levels, allowedLevels[0]);
+  updateMarksStreamOptions();
+  setOptions(els.subjectSelect, markSubjects, markSubjectRows[0]?.id);
+  setOptions(els.marksTeacherSelect, markTeachers, currentUser?.teacherId || assignedTeacherId(currentMarksClassId(), els.subjectSelect.value) || markTeacherRows[0]?.id);
+  els.marksTeacherSelect.disabled = teacherRole;
+  updateMarksSubjectOptions();
 
   for (const id of ["deadlineAcademicYearSelect", "deadlineTermSelect", "deadlineExamTypeSelect", "deadlineClassLevelSelect", "deadlineStreamSelect", "deadlineSubjectSelect", "deadlineTeacherSelect"]) {
     const element = document.getElementById(id);
@@ -305,18 +364,52 @@ function renderSelects() {
     if (id.includes("AcademicYear")) setOptions(element, years, db.school.academicYear);
     if (id.includes("Term")) setOptions(element, terms, db.school.term);
     if (id.includes("ExamType")) setOptions(element, exams, db.school.exam);
-    if (id.includes("ClassLevel")) setOptions(element, levels, "P6");
-    if (id.includes("Stream")) setOptions(element, streams, "East");
+    if (id.includes("ClassLevel")) setOptions(element, levels, allowedLevels[0]);
+    if (id.includes("Stream")) setOptions(element, streams, allowedStreams[0]);
     if (id.includes("Subject")) setOptions(element, subjects, "eng");
     if (id.includes("Teacher")) setOptions(element, teachers, assignedTeacherId("p6-east", "eng") || db.teachers[0]?.id);
   }
+
+  setOptions(els.assignmentTeacherSelect, teachers, db.teachers[0]?.id);
+  setOptions(els.assignmentClassSelect, db.classes.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join(""), db.classes[0]?.id);
+  setOptions(els.assignmentSubjectSelect, subjects, db.subjects[0]?.id);
+  updateStudentImportMode();
 }
 
 function setOptions(element, html, selectedValue) {
   if (!element) return;
   const previous = element.value;
   element.innerHTML = html;
-  element.value = previous || selectedValue || element.options[0]?.value || "";
+  const available = [...element.options].map((option) => option.value);
+  element.value = available.includes(previous)
+    ? previous
+    : available.includes(String(selectedValue ?? ""))
+      ? String(selectedValue)
+      : element.options[0]?.value || "";
+}
+
+function updateMarksStreamOptions() {
+  const level = els.marksClassLevelSelect.value || db.classes[0]?.level;
+  const rows = db.classes.filter((item) => item.level === level);
+  setOptions(
+    els.marksStreamSelect,
+    rows.map((item) => `<option value="${item.stream}">${escapeHtml(item.stream)}</option>`).join(""),
+    rows[0]?.stream
+  );
+}
+
+function updateMarksSubjectOptions() {
+  if (!hasRole("Class Teacher", "Subject Teacher")) return;
+  const classId = currentMarksClassId();
+  const subjectIds = new Set(db.teacherAssignments
+    .filter((item) => item.teacherId === currentUser.teacherId && item.classId === classId && item.active !== false)
+    .map((item) => item.subjectId));
+  const rows = db.subjects.filter((subject) => subjectIds.has(subject.id));
+  setOptions(
+    els.subjectSelect,
+    rows.map((subject) => `<option value="${subject.id}">${escapeHtml(subject.code)} - ${escapeHtml(subject.name)}</option>`).join(""),
+    rows[0]?.id
+  );
 }
 
 function renderDashboard() {
@@ -403,8 +496,10 @@ function closeMobileMoreSheet() {
 }
 
 function renderStudents() {
-  els.studentCountLabel.textContent = `${results.counts.activeStudents} active, ${results.counts.inactiveStudents} historical`;
-  els.studentRegisterBody.innerHTML = db.students.map((student) => {
+  const students = visibleRegisterStudents();
+  const active = students.filter((student) => student.status === "Active").length;
+  els.studentCountLabel.textContent = `${students.length} shown | ${active} active`;
+  els.studentRegisterBody.innerHTML = students.map((student) => {
     const classInfo = classById(student.classId) || {};
     return `
       <tr class="student-register-row" data-student-id="${escapeHtml(student.id)}">
@@ -420,8 +515,45 @@ function renderStudents() {
         <td><button type="button" class="secondary student-view-button" data-student-id="${escapeHtml(student.id)}">View</button></td>
       </tr>
     `;
-  }).join("");
+  }).join("") || `<tr><td colspan="10">No learners match the selected class and stream.</td></tr>`;
   decorateMobileTables();
+}
+
+function visibleRegisterStudents() {
+  const classLevel = els.studentFilterClassSelect?.value || "All";
+  const stream = els.studentFilterStreamSelect?.value || "All";
+  return db.students
+    .filter((student) => {
+      const classInfo = classById(student.classId) || {};
+      return (classLevel === "All" || (classInfo.level || student.classLevel) === classLevel) &&
+        (stream === "All" || (classInfo.stream || student.stream) === stream);
+    })
+    .sort((a, b) => {
+      const aClass = classById(a.classId)?.name || "";
+      const bClass = classById(b.classId)?.name || "";
+      return aClass.localeCompare(bClass) || a.name.localeCompare(b.name);
+    });
+}
+
+function downloadVisibleStudentList() {
+  const students = visibleRegisterStudents();
+  if (!students.length) return toast("No learners are available to download");
+  const lines = [["Admission Number", "Student ID", "Full Name", "Gender", "Class", "Stream", "Status", "Parent/Guardian", "Parent Contact"]];
+  for (const student of students) {
+    const classInfo = classById(student.classId) || {};
+    lines.push([
+      student.admissionNo,
+      student.studentId,
+      student.name,
+      student.gender,
+      classInfo.level || student.classLevel,
+      classInfo.stream || student.stream,
+      student.status,
+      student.guardian,
+      student.contact
+    ]);
+  }
+  downloadText("visible_student_list.csv", lines.map((row) => row.map(csvCell).join(",")).join("\n"));
 }
 
 function renderStudentProfile() {
@@ -454,6 +586,7 @@ function renderStudentProfile() {
   const movements = (db.movements || []).filter((item) => item.studentId === student.id);
   const attendance = student.attendanceDays || { present: 0, absent: 0, total: 0 };
   const classOptions = db.classes.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join("");
+  const canManageStudent = hasRole("Super Admin", "School Admin");
   els.studentProfileContent.innerHTML = `
     <section class="student-profile-hero">
       <div class="student-profile-photo">
@@ -463,9 +596,9 @@ function renderStudentProfile() {
         <span class="eyebrow">${escapeHtml(student.admissionNo)}</span>
         <h2>${escapeHtml(student.name)}</h2>
         <p>${escapeHtml(classInfo.name || `${student.classLevel} ${student.stream}`)} · ${escapeHtml(student.status)}</p>
-        <label class="profile-photo-upload">Replace Student Photo
+        ${canManageStudent ? `<label class="profile-photo-upload">Replace Student Photo
           <input id="profilePhotoInput" type="file" accept="image/*">
-        </label>
+        </label>` : ""}
       </div>
       <div class="student-profile-academic">
         <div><span>Average</span><strong>${academic?.average ?? "-"}</strong></div>
@@ -483,33 +616,7 @@ function renderStudentProfile() {
       <div><h3>Administrative Notes</h3><p>${escapeHtml(student.notes || "No notes recorded.")}</p></div>
       <div><h3>Competencies</h3><div class="competency-list">${Object.entries(student.competencies || {}).map(([label, value]) => `<span>${escapeHtml(label)} <strong>${escapeHtml(value)}/5</strong></span>`).join("")}</div></div>
     </section>
-    <section class="profile-workspace-grid">
-      <form id="studentDetailsForm" class="profile-form panel">
-        <div class="panel-heading"><h3>Attendance & Contacts</h3><span>Maintain the learner's current record</span></div>
-        <label>Parent / Guardian <input name="guardian" value="${escapeHtml(student.guardian || "")}"></label>
-        <label>Primary Contact <input name="contact" value="${escapeHtml(student.contact || "")}"></label>
-        <label>Alternative Contact <input name="alternativeContact" value="${escapeHtml(student.alternativeContact || "")}"></label>
-        <label>Days Present <input name="present" type="number" min="0" value="${attendance.present || 0}"></label>
-        <label>Days Absent <input name="absent" type="number" min="0" value="${attendance.absent || 0}"></label>
-        <label>Total School Days <input name="total" type="number" min="0" value="${attendance.total || 0}"></label>
-        <label>Activities <input name="activities" value="${escapeHtml((student.activities || []).join(", "))}" placeholder="Debate, Football"></label>
-        <label>Notes <textarea name="notes">${escapeHtml(student.notes || "")}</textarea></label>
-        <label>Class Teacher Comment <textarea name="classTeacherComment">${escapeHtml(student.reportComments?.classTeacher || "")}</textarea></label>
-        <label>DOS Comment <textarea name="dosComment">${escapeHtml(student.reportComments?.dos || "")}</textarea></label>
-        <label>Head Teacher Comment <textarea name="headTeacherComment">${escapeHtml(student.reportComments?.headTeacher || "")}</textarea></label>
-        <button type="submit">Save Student Details</button>
-      </form>
-      <form id="studentMovementForm" class="profile-form panel">
-        <div class="panel-heading"><h3>Record Movement</h3><span>Class, stream, transfer, or status change</span></div>
-        <label>Movement Type <select name="movementType"><option>Class Change</option><option>Stream Change</option><option>Transfer</option><option>Repeat</option><option>Promotion</option><option>Status Change</option></select></label>
-        <label>Destination Class & Stream <select name="toClassId"><option value="">No class change</option>${classOptions}</select></label>
-        <label>New Status <select name="status"><option value="">Keep current status</option>${STATUS_OPTIONS.map((status) => `<option>${status}</option>`).join("")}</select></label>
-        <label>Movement Date <input name="movementDate" type="date" value="${new Date().toISOString().slice(0, 10)}"></label>
-        <label>Approved By <input name="approvedBy" value="School Admin"></label>
-        <label>Remarks <textarea name="remarks"></textarea></label>
-        <button type="submit">Record Movement</button>
-      </form>
-    </section>
+    ${renderStudentProfileWorkspace(student, attendance, classOptions)}
     <section class="profile-detail-band">
       <div class="panel-heading"><h3>Learner Journey</h3><span>${movements.length} movement record(s)</span></div>
       <div class="journey-timeline">
@@ -520,6 +627,59 @@ function renderStudentProfile() {
   document.getElementById("profilePhotoInput")?.addEventListener("change", updateProfilePhoto);
   document.getElementById("studentDetailsForm")?.addEventListener("submit", saveStudentDetails);
   document.getElementById("studentMovementForm")?.addEventListener("submit", saveStudentMovement);
+}
+
+function renderStudentProfileWorkspace(student, attendance, classOptions) {
+  if (hasRole("Super Admin", "School Admin")) {
+    return `
+      <section class="profile-workspace-grid">
+        <form id="studentDetailsForm" class="profile-form panel">
+          <div class="panel-heading"><h3>Attendance, Contacts & Comments</h3><span>Maintain the learner's current record</span></div>
+          <label>Parent / Guardian <input name="guardian" value="${escapeHtml(student.guardian || "")}"></label>
+          <label>Primary Contact <input name="contact" value="${escapeHtml(student.contact || "")}"></label>
+          <label>Alternative Contact <input name="alternativeContact" value="${escapeHtml(student.alternativeContact || "")}"></label>
+          <label>Days Present <input name="present" type="number" min="0" value="${attendance.present || 0}"></label>
+          <label>Days Absent <input name="absent" type="number" min="0" value="${attendance.absent || 0}"></label>
+          <label>Total School Days <input name="total" type="number" min="0" value="${attendance.total || 0}"></label>
+          <label>Activities <input name="activities" value="${escapeHtml((student.activities || []).join(", "))}" placeholder="Debate, Football"></label>
+          <label>Notes <textarea name="notes">${escapeHtml(student.notes || "")}</textarea></label>
+          <label>Class Teacher Comment <textarea name="classTeacherComment">${escapeHtml(student.reportComments?.classTeacher || "")}</textarea></label>
+          <label>DOS Comment <textarea name="dosComment">${escapeHtml(student.reportComments?.dos || "")}</textarea></label>
+          <label>Head Teacher Comment <textarea name="headTeacherComment">${escapeHtml(student.reportComments?.headTeacher || "")}</textarea></label>
+          <button type="submit">Save Student Details</button>
+        </form>
+        <form id="studentMovementForm" class="profile-form panel">
+          <div class="panel-heading"><h3>Record Movement</h3><span>Class, stream, transfer, or status change</span></div>
+          <label>Movement Type <select name="movementType"><option>Class Change</option><option>Stream Change</option><option>Transfer</option><option>Repeat</option><option>Promotion</option><option>Status Change</option></select></label>
+          <label>Destination Class & Stream <select name="toClassId"><option value="">No class change</option>${classOptions}</select></label>
+          <label>New Status <select name="status"><option value="">Keep current status</option>${STATUS_OPTIONS.map((status) => `<option>${status}</option>`).join("")}</select></label>
+          <label>Movement Date <input name="movementDate" type="date" value="${new Date().toISOString().slice(0, 10)}"></label>
+          <label>Approved By <input name="approvedBy" value="School Admin"></label>
+          <label>Remarks <textarea name="remarks"></textarea></label>
+          <button type="submit">Record Movement</button>
+        </form>
+      </section>`;
+  }
+
+  const editable = hasRole("Class Teacher")
+    ? ["classTeacher", "Class Teacher Comment"]
+    : hasRole("DOS")
+      ? ["dos", "Director of Studies Comment"]
+      : hasRole("Head Teacher")
+        ? ["headTeacher", "Head Teacher Comment"]
+        : null;
+  if (!editable) {
+    return `<section class="panel role-guidance"><strong>Read-only learner profile</strong><span>Subject remarks are updated from Marks Upload for your assigned subject and classes.</span></section>`;
+  }
+  const [field, label] = editable;
+  return `
+    <section class="profile-workspace-grid single-editor">
+      <form id="studentDetailsForm" class="profile-form panel">
+        <div class="panel-heading"><h3>${escapeHtml(label)}</h3><span>This comment is specific to ${escapeHtml(student.name)}</span></div>
+        <label>${escapeHtml(label)} <textarea name="${field}Comment">${escapeHtml(student.reportComments?.[field] || "")}</textarea></label>
+        <button type="submit">Save Comment</button>
+      </form>
+    </section>`;
 }
 
 function renderMarksEntry() {
@@ -632,15 +792,16 @@ function renderAnalytics() {
       <strong>${subject.average}</strong>
     </div>
   `).join("");
+  renderAnalyticsDrilldown();
 }
 
 function renderSummaryBars(items) {
   return items.map((item) => `
-    <div class="bar-row">
+    <button type="button" class="bar-row analytics-class-row" data-analytics-class="${escapeHtml(item.name)}">
       <div><strong>${escapeHtml(item.name)}</strong><span>${item.learners} learners | ${item.promoted} promoted</span></div>
       <div class="bar-track"><span style="width:${Math.max(4, item.average)}%"></span></div>
       <strong>${item.average}</strong>
-    </div>
+    </button>
   `).join("");
 }
 
@@ -648,6 +809,53 @@ function renderSummaryList(items) {
   return items.map((item) => `
     <article><div><strong>${escapeHtml(item.name)}</strong><span>${item.learners} learners</span></div><div><strong>${item.average}</strong><span>average</span></div><div><strong>${item.promoted}</strong><span>promoted</span></div></article>
   `).join("");
+}
+
+function renderAnalyticsDrilldown() {
+  const classes = [...new Set(results.students.map((student) => student.className))].sort();
+  if (!classes.includes(selectedAnalyticsClass)) selectedAnalyticsClass = classes[0] || "";
+  setOptions(
+    els.analyticsClassSelect,
+    classes.map((name) => `<option value="${name}">${escapeHtml(name)}</option>`).join(""),
+    selectedAnalyticsClass
+  );
+  selectedAnalyticsClass = els.analyticsClassSelect.value;
+  const streams = [...new Set(results.students
+    .filter((student) => student.className === selectedAnalyticsClass)
+    .map((student) => student.stream))].sort();
+  if (selectedAnalyticsStream !== "All" && !streams.includes(selectedAnalyticsStream)) selectedAnalyticsStream = "All";
+  setOptions(
+    els.analyticsStreamSelect,
+    `<option value="All">All streams</option>${streams.map((name) => `<option value="${name}">${escapeHtml(name)}</option>`).join("")}`,
+    selectedAnalyticsStream
+  );
+  selectedAnalyticsStream = els.analyticsStreamSelect.value;
+  const learners = analyticsDrillLearners();
+  els.analyticsDrillTitle.textContent = `${selectedAnalyticsClass || "Class"} ${selectedAnalyticsStream === "All" ? "" : selectedAnalyticsStream} Learners`.trim();
+  els.analyticsLearnerList.innerHTML = learners.map((student) => `
+    <article>
+      <div><strong>${escapeHtml(student.name)}</strong><span>${escapeHtml(student.admissionNo)} | ${escapeHtml(student.className)} ${escapeHtml(student.stream)}</span></div>
+      <div><span>Average</span><strong>${student.average}</strong></div>
+      <div><span>Position</span><strong>${student.streamPosition || student.classPosition || "-"}</strong></div>
+      <button type="button" class="secondary analytics-student-view" data-student-id="${escapeHtml(student.id)}">View</button>
+    </article>
+  `).join("") || `<div class="empty-state">No learners found for this class and stream.</div>`;
+}
+
+function analyticsDrillLearners() {
+  return results.students
+    .filter((student) => student.className === selectedAnalyticsClass && (selectedAnalyticsStream === "All" || student.stream === selectedAnalyticsStream))
+    .sort((a, b) => a.stream.localeCompare(b.stream) || a.streamPosition - b.streamPosition || a.name.localeCompare(b.name));
+}
+
+function downloadAnalyticsLearners() {
+  const learners = analyticsDrillLearners();
+  if (!learners.length) return toast("No learners are available to download");
+  const rows = [["Admission Number", "Student Name", "Class", "Stream", "Average", "Aggregate", "Class Position", "Stream Position", "Promotion"]];
+  for (const student of learners) {
+    rows.push([student.admissionNo, student.name, student.className, student.stream, student.average, student.aggregate, student.classPosition, student.streamPosition, student.promotion]);
+  }
+  downloadText(`${selectedAnalyticsClass}_${selectedAnalyticsStream}_learners.csv`, rows.map((row) => row.map(csvCell).join(",")).join("\n"));
 }
 
 function renderReportSelect() {
@@ -819,6 +1027,14 @@ async function saveReportSettings(event) {
   await loadData();
 }
 
+async function saveTeacherAssignment(event) {
+  event.preventDefault();
+  const body = Object.fromEntries(new FormData(event.currentTarget).entries());
+  await api("/api/teacher-assignments", { method: "POST", body: JSON.stringify(body) });
+  toast("Teacher assignment saved");
+  await loadData();
+}
+
 async function saveStudent(event) {
   event.preventDefault();
   const body = Object.fromEntries(new FormData(els.studentForm).entries());
@@ -836,11 +1052,20 @@ function downloadStudentTemplate() {
   const level = els.importClassLevelSelect.value || "P6";
   const stream = els.importStreamSelect.value || "East";
   const headers = ["Admission Number", "Student ID", "Full Name", "Gender", "Date of Birth", "Class", "Stream", "House", "Parent/Guardian", "Parent Contact", "Status", "Admission Date", "Attendance", "Notes"];
-  const example = ["MJA-NEW-001", "MJA-NEW-001", "Student Full Name", "F", "2014-01-31", level, stream, "Blue", "Parent Name", "+256700000000", "Active", new Date().toISOString().slice(0, 10), "90", ""];
-  downloadText(`${level}_${stream}_student_class_list.csv`, [headers, example].map((row) => row.map(csvCell).join(",")).join("\n"));
+  const examples = els.studentImportModeSelect.value === "multi"
+    ? [
+        ["MJA-NEW-001", "MJA-NEW-001", "First Student", "F", "2014-01-31", "P6", "East", "Blue", "Parent Name", "+256700000000", "Active", new Date().toISOString().slice(0, 10), "90", ""],
+        ["MJA-NEW-002", "MJA-NEW-002", "Second Student", "M", "2015-04-18", "P5", "West", "Red", "Parent Name", "+256700000001", "Active", new Date().toISOString().slice(0, 10), "92", ""]
+      ]
+    : [["MJA-NEW-001", "MJA-NEW-001", "Student Full Name", "F", "2014-01-31", level, stream, "Blue", "Parent Name", "+256700000000", "Active", new Date().toISOString().slice(0, 10), "90", ""]];
+  const filename = els.studentImportModeSelect.value === "multi"
+    ? "all_classes_student_import.csv"
+    : `${level}_${stream}_student_class_list.csv`;
+  downloadText(filename, [headers, ...examples].map((row) => row.map(csvCell).join(",")).join("\n"));
 }
 
 async function importStudentCsv(file) {
+  cancelPendingStudentImport(false);
   const text = await file.text();
   const rows = parseCsv(text);
   if (rows.length < 2) throw new Error("The student CSV has no data rows");
@@ -852,6 +1077,7 @@ async function importStudentCsv(file) {
     throw new Error("CSV must contain Admission Number and Full Name columns");
   }
 
+  const mixedClasses = els.studentImportModeSelect.value === "multi";
   const students = rows.slice(1).map((row, rowIndex) => ({
     rowNumber: rowIndex + 2,
     admissionNo: csvValueAny(row, index, admissionHeaders),
@@ -859,8 +1085,8 @@ async function importStudentCsv(file) {
     name: csvValueAny(row, index, nameHeaders),
     gender: csvValueAny(row, index, ["gender", "sex"]),
     dateOfBirth: csvValueAny(row, index, ["dateofbirth", "dob"]),
-    classLevel: csvValueAny(row, index, ["class", "classlevel"]) || els.importClassLevelSelect.value,
-    stream: csvValueAny(row, index, ["stream"]) || els.importStreamSelect.value,
+    classLevel: csvValueAny(row, index, ["class", "classlevel"]) || (mixedClasses ? "" : els.importClassLevelSelect.value),
+    stream: csvValueAny(row, index, ["stream"]) || (mixedClasses ? "" : els.importStreamSelect.value),
     house: csvValueAny(row, index, ["house"]),
     guardian: csvValueAny(row, index, ["parentguardian", "guardian", "parentname"]),
     contact: csvValueAny(row, index, ["parentcontact", "contact", "phone", "phonenumber"]),
@@ -878,27 +1104,93 @@ async function importStudentCsv(file) {
     student.contact
   ].some((value) => String(value || "").trim()));
 
+  const request = {
+    action: "previewImport",
+    mixedClasses,
+    classLevel: mixedClasses ? "" : els.importClassLevelSelect.value,
+    stream: mixedClasses ? "" : els.importStreamSelect.value,
+    students
+  };
+
   try {
     const result = await api("/api/students", {
       method: "POST",
-      body: JSON.stringify({
-        action: "import",
-        classLevel: els.importClassLevelSelect.value,
-        stream: els.importStreamSelect.value,
-        students
-      })
+      body: JSON.stringify(request)
     });
+    pendingStudentImport = { fileName: file.name, request: { ...request, action: "import" }, preview: result };
     latestStudentImportErrors = [];
     renderStudentImportErrors();
-    els.studentCsvInput.value = "";
-    els.studentImportSummary.textContent = `${result.created} students added, ${result.updated} existing records updated`;
-    toast(`Imported ${result.total} student record(s)`);
+    els.studentImportSummary.textContent = `${file.name}: ${result.total} valid row(s), ${result.created} new, ${result.updated} updates. Nothing uploaded yet.`;
+    els.uploadStudentCsvBtn.disabled = false;
+    els.cancelStudentImportBtn.hidden = false;
+    renderStudentImportPreview(result);
+    toast("Student file validated. Review it, then click Upload Students.");
+  } catch (error) {
+    latestStudentImportErrors = error.payload?.errors || [errorRow("-", "-", "Import Failed", error.message)];
+    renderStudentImportErrors();
+    renderStudentImportPreview(null);
+    toast(`${latestStudentImportErrors.length} student import issue(s) found`);
+  }
+}
+
+async function uploadPendingStudentImport() {
+  if (!pendingStudentImport) return toast("Choose and validate a student CSV first");
+  els.uploadStudentCsvBtn.disabled = true;
+  els.uploadStudentCsvBtn.textContent = "Uploading...";
+  try {
+    const result = await api("/api/students", {
+      method: "POST",
+      body: JSON.stringify(pendingStudentImport.request)
+    });
+    toast(`Uploaded ${result.total} student record(s)`);
+    cancelPendingStudentImport();
     await loadData();
   } catch (error) {
     latestStudentImportErrors = error.payload?.errors || [errorRow("-", "-", "Import Failed", error.message)];
     renderStudentImportErrors();
-    toast(`${latestStudentImportErrors.length} student import issue(s) found`);
+  } finally {
+    els.uploadStudentCsvBtn.textContent = "Upload Students";
+    els.uploadStudentCsvBtn.disabled = !pendingStudentImport;
   }
+}
+
+function renderStudentImportPreview(result) {
+  if (!result?.preview?.length) {
+    els.studentImportPreview.innerHTML = "";
+    return;
+  }
+  const breakdown = result.classBreakdown.map((item) => `${item.className}: ${item.count}`).join(" | ");
+  els.studentImportPreview.innerHTML = `
+    <div class="preview-heading"><strong>Ready for upload</strong><span>${escapeHtml(breakdown)}</span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Action</th><th>Admission No.</th><th>Name</th><th>Class</th><th>Stream</th></tr></thead>
+        <tbody>${result.preview.map((row) => `<tr><td>${escapeHtml(row.action)}</td><td>${escapeHtml(row.admissionNo)}</td><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.classLevel)}</td><td>${escapeHtml(row.stream)}</td></tr>`).join("")}</tbody>
+      </table>
+    </div>
+    ${result.total > result.preview.length ? `<small>Showing the first ${result.preview.length} of ${result.total} rows.</small>` : ""}`;
+  decorateMobileTables();
+}
+
+function cancelPendingStudentImport(clearFile = true) {
+  pendingStudentImport = null;
+  latestStudentImportErrors = [];
+  els.uploadStudentCsvBtn.disabled = true;
+  els.cancelStudentImportBtn.hidden = true;
+  els.studentImportSummary.textContent = "No class list selected";
+  els.studentImportPreview.innerHTML = "";
+  els.studentImportErrors.innerHTML = "";
+  els.downloadStudentErrorsBtn.hidden = true;
+  if (clearFile) els.studentCsvInput.value = "";
+}
+
+function updateStudentImportMode() {
+  if (!els.studentImportModeSelect) return;
+  const mixed = els.studentImportModeSelect.value === "multi";
+  document.querySelectorAll(".student-import-default").forEach((label) => {
+    label.hidden = mixed;
+  });
+  cancelPendingStudentImport();
 }
 
 function renderStudentImportErrors() {
@@ -945,29 +1237,31 @@ async function updateProfilePhoto(event) {
 async function saveStudentDetails(event) {
   event.preventDefault();
   const values = Object.fromEntries(new FormData(event.currentTarget).entries());
-  await api("/api/students", {
-    method: "POST",
-    body: JSON.stringify({
-      action: "updateDetails",
-      studentId: selectedProfileStudentId,
+  const body = { action: "updateDetails", studentId: selectedProfileStudentId };
+  const reportComments = {};
+  if (values.classTeacherComment !== undefined) reportComments.classTeacher = values.classTeacherComment;
+  if (values.dosComment !== undefined) reportComments.dos = values.dosComment;
+  if (values.headTeacherComment !== undefined) reportComments.headTeacher = values.headTeacherComment;
+  if (Object.keys(reportComments).length) body.reportComments = reportComments;
+  if (hasRole("Super Admin", "School Admin")) {
+    Object.assign(body, {
       guardian: values.guardian,
       contact: values.contact,
       alternativeContact: values.alternativeContact,
       notes: values.notes,
       activities: String(values.activities || "").split(",").map((item) => item.trim()).filter(Boolean),
-      reportComments: {
-        classTeacher: values.classTeacherComment,
-        dos: values.dosComment,
-        headTeacher: values.headTeacherComment
-      },
       attendanceDays: {
         present: Number(values.present || 0),
         absent: Number(values.absent || 0),
         total: Number(values.total || 0)
       }
-    })
+    });
+  }
+  await api("/api/students", {
+    method: "POST",
+    body: JSON.stringify(body)
   });
-  toast("Student details updated");
+  toast(hasRole("Super Admin", "School Admin") ? "Student details updated" : "Student comment updated");
   await loadData();
 }
 
@@ -1105,7 +1399,7 @@ async function createStaffUser(event) {
   await api("/api/users", { method: "POST", body: JSON.stringify(body) });
   event.currentTarget.reset();
   toast("Staff account created");
-  await loadUsers();
+  await loadData();
 }
 
 async function saveUserRole(userId) {
@@ -1115,7 +1409,7 @@ async function saveUserRole(userId) {
     body: JSON.stringify({ action: "updateRole", userId, role })
   });
   toast("User role updated");
-  await loadUsers();
+  await loadData();
 }
 
 function compressImage(file) {
@@ -1171,55 +1465,106 @@ async function saveMarks() {
 function downloadCsvTemplate() {
   const context = marksContext();
   const subject = subjectById(context.subjectId);
-  const classInfo = classById(context.classId);
-  const learners = db.students.filter((student) => student.status === "Active" && student.classId === context.classId);
   const lines = ["Academic Year,Term,Exam Type,Class,Stream,Subject,Admission Number,Student Name,Mark,Remarks"];
+  const multi = els.marksImportModeSelect.value === "multi";
+  const eligibleClassIds = multi
+    ? new Set(db.teacherAssignments
+      .filter((item) => item.teacherId === context.teacherId && item.subjectId === context.subjectId && item.active !== false)
+      .map((item) => item.classId))
+    : new Set([context.classId]);
+  const learners = db.students.filter((student) => student.status === "Active" && eligibleClassIds.has(student.classId));
   for (const student of learners) {
+    const classInfo = classById(student.classId);
     lines.push([context.academicYear, context.term, context.examType, classInfo.level, classInfo.stream, subject.name, student.admissionNo, student.name, "", ""].map(csvCell).join(","));
   }
-  downloadText(`${context.academicYear}_${context.term}_${context.examType}_${classInfo.name}_${subject.code}_template.csv`, lines.join("\n"));
+  const scope = multi ? "multiple_classes" : classById(context.classId)?.name || "class";
+  downloadText(`${context.academicYear}_${context.term}_${context.examType}_${scope}_${subject.code}_template.csv`, lines.join("\n"));
 }
 
 async function importCsv(file) {
+  cancelPendingMarksImport(false);
   const context = marksContext();
   const text = await file.text();
   const rows = parseCsv(text);
+  if (rows.length < 2) throw new Error("The marks CSV has no data rows");
+  const headers = rows[0].map(normalizeCsvHeader);
+  const headerIndex = Object.fromEntries(headers.map((header, position) => [header, position]));
   const errors = [];
-  const marks = [];
+  const groupedMarks = new Map();
   const seen = new Set();
-  rows.slice(1).forEach((row, index) => {
-    const rowNumber = index + 2;
-    const classText = String(row[3] || "").trim();
-    const streamText = String(row[4] || "").trim();
-    const admissionNo = String(row[6] || "").trim();
-    const markValue = String(row[8] || "").trim();
+  rows.slice(1).forEach((row, rowIndex) => {
+    const rowNumber = rowIndex + 2;
+    const multi = els.marksImportModeSelect.value === "multi";
+    const classText = multi ? csvValueAny(row, headerIndex, ["class", "classlevel"]) : els.marksClassLevelSelect.value;
+    const streamText = multi ? csvValueAny(row, headerIndex, ["stream"]) : els.marksStreamSelect.value;
+    const admissionNo = csvValueAny(row, headerIndex, ["admissionnumber", "admissionno", "admno"]);
+    const markValue = csvValueAny(row, headerIndex, ["mark", "score", "final"]);
+    const rowSubject = csvValueAny(row, headerIndex, ["subject", "subjectname"]);
+    const classInfo = findClassByNames(classText, streamText);
+    if (!classInfo) return errors.push(errorRow(rowNumber, admissionNo, "Invalid Class/Stream", "Class and stream must match a configured school class"));
+    if (rowSubject && ![subjectById(context.subjectId)?.name, subjectById(context.subjectId)?.code].some((value) => String(value || "").toLowerCase() === rowSubject.toLowerCase())) {
+      return errors.push(errorRow(rowNumber, admissionNo, "Wrong Subject", `Row subject must be ${subjectById(context.subjectId)?.name}`));
+    }
     const student = db.students.find((item) => item.admissionNo === admissionNo);
     if (!student) return errors.push(errorRow(rowNumber, admissionNo, "Missing Student", "Admission number does not exist"));
-    if (student.classId !== context.classId || classText !== els.marksClassLevelSelect.value || streamText !== els.marksStreamSelect.value) return errors.push(errorRow(rowNumber, admissionNo, "Wrong Class/Stream", "Learner is not in the selected class and stream"));
-    if (seen.has(admissionNo)) return errors.push(errorRow(rowNumber, admissionNo, "Duplicate Mark", "Learner appears twice in the file"));
+    if (student.classId !== classInfo.id) return errors.push(errorRow(rowNumber, admissionNo, "Wrong Class/Stream", "Learner is not in the class and stream stated in the file"));
+    const duplicateKey = `${classInfo.id}:${admissionNo}`;
+    if (seen.has(duplicateKey)) return errors.push(errorRow(rowNumber, admissionNo, "Duplicate Mark", "Learner appears twice in the file"));
     if (markValue === "") return errors.push(errorRow(rowNumber, admissionNo, "Missing Mark", "Mark is required"));
     const score = Number(markValue);
     if (!Number.isFinite(score) || score < 0 || score > 100) return errors.push(errorRow(rowNumber, admissionNo, "Mark Range", "Mark must be between 0 and 100"));
-    seen.add(admissionNo);
-    marks.push({ rowNumber, studentId: student.id, admissionNo, score, remarks: String(row[9] || "").trim() });
+    if (!isTeacherAssigned(context.teacherId, classInfo.id, context.subjectId)) {
+      return errors.push(errorRow(rowNumber, admissionNo, "Teacher Assignment", `Selected teacher is not assigned to ${classInfo.name} for this subject`));
+    }
+    seen.add(duplicateKey);
+    if (!groupedMarks.has(classInfo.id)) groupedMarks.set(classInfo.id, []);
+    groupedMarks.get(classInfo.id).push({
+      rowNumber,
+      studentId: student.id,
+      admissionNo,
+      score,
+      remarks: csvValueAny(row, headerIndex, ["remarks", "comment", "teacherremark"])
+    });
   });
-  if (!isTeacherAssigned(context.teacherId, context.classId, context.subjectId)) {
-    errors.push(errorRow("-", "-", "Teacher Assignment", "Teacher is not assigned to this class, stream and subject"));
-  }
   latestUploadErrors = errors;
   renderUploadErrors();
   if (errors.length) return toast(`${errors.length} upload error(s) found`);
+  const batches = [...groupedMarks].map(([classId, marks]) => ({ ...context, classId, marks }));
+  const total = batches.reduce((sum, batch) => sum + batch.marks.length, 0);
+  pendingMarksImport = {
+    fileName: file.name,
+    body: els.marksImportModeSelect.value === "multi"
+      ? { mode: "multi", ...context, batches }
+      : batches[0]
+  };
+  els.uploadMarksCsvBtn.disabled = false;
+  els.uploadSummary.textContent = `${file.name}: ${total} valid mark(s) across ${batches.length} class(es). Nothing uploaded yet.`;
+  toast("Marks file validated. Click Upload Validated CSV to save it.");
+}
+
+async function uploadPendingMarksCsv() {
+  if (!pendingMarksImport) return toast("Choose and validate a marks CSV first");
+  els.uploadMarksCsvBtn.disabled = true;
+  els.uploadMarksCsvBtn.textContent = "Uploading...";
   try {
-    await api("/api/marks", { method: "POST", body: JSON.stringify({ ...context, marks }) });
-    latestUploadErrors = [];
-    els.csvInput.value = "";
-    toast(`Imported ${marks.length} marks`);
+    const response = await api("/api/marks", { method: "POST", body: JSON.stringify(pendingMarksImport.body) });
+    const saved = response.results?.counts?.marks ?? "";
+    toast(saved === "" ? "Marks uploaded" : "Validated marks uploaded");
+    cancelPendingMarksImport();
     await loadData();
   } catch (error) {
-    latestUploadErrors = error.payload?.errors || [];
+    latestUploadErrors = error.payload?.errors || [errorRow("-", "-", "Upload Failed", error.message)];
     renderUploadErrors();
-    toast(`${latestUploadErrors.length || 1} server validation issue(s) found`);
+  } finally {
+    els.uploadMarksCsvBtn.textContent = "Upload Validated CSV";
+    els.uploadMarksCsvBtn.disabled = !pendingMarksImport;
   }
+}
+
+function cancelPendingMarksImport(clearFile = true) {
+  pendingMarksImport = null;
+  els.uploadMarksCsvBtn.disabled = true;
+  if (clearFile) els.csvInput.value = "";
 }
 
 function downloadErrorReport() {
@@ -1284,6 +1629,15 @@ function currentMarksClassId() {
 
 function classIdFrom(level, stream) {
   return `${String(level).toLowerCase()}-${String(stream).toLowerCase()}`;
+}
+
+function findClassByNames(level, stream) {
+  const normalizedLevel = String(level || "").trim().toLowerCase();
+  const normalizedStream = String(stream || "").trim().toLowerCase();
+  return db.classes.find((item) =>
+    String(item.level || "").toLowerCase() === normalizedLevel &&
+    String(item.stream || "").toLowerCase() === normalizedStream
+  );
 }
 
 function assignedTeacherId(classId, subjectId) {
@@ -1433,13 +1787,20 @@ els.userList?.addEventListener("click", (event) => {
 
 els.schoolProfileForm.addEventListener("submit", saveSchoolProfile);
 els.reportSettingsForm?.addEventListener("submit", saveReportSettings);
+els.teacherAssignmentForm?.addEventListener("submit", saveTeacherAssignment);
 els.studentForm.addEventListener("submit", saveStudent);
 els.downloadStudentTemplateBtn.addEventListener("click", downloadStudentTemplate);
 els.downloadStudentErrorsBtn.addEventListener("click", downloadStudentErrorReport);
+els.uploadStudentCsvBtn.addEventListener("click", uploadPendingStudentImport);
+els.cancelStudentImportBtn.addEventListener("click", () => cancelPendingStudentImport());
+els.studentImportModeSelect.addEventListener("change", updateStudentImportMode);
 els.studentCsvInput.addEventListener("change", (event) => {
   const file = event.target.files[0];
   if (file) importStudentCsv(file).catch((error) => toast(error.message));
 });
+els.studentFilterClassSelect.addEventListener("change", renderStudents);
+els.studentFilterStreamSelect.addEventListener("change", renderStudents);
+els.downloadStudentListBtn.addEventListener("click", downloadVisibleStudentList);
 els.studentRegisterBody.addEventListener("click", (event) => {
   const row = event.target.closest("[data-student-id]");
   if (row) openStudentProfile(row.dataset.studentId);
@@ -1453,19 +1814,53 @@ els.studentProfileReportBtn.addEventListener("click", openProfileAcademicReport)
   els.marksAcademicYearSelect,
   els.marksTermSelect,
   els.marksExamTypeSelect,
-  els.marksClassLevelSelect,
-  els.marksStreamSelect,
   els.subjectSelect
 ].forEach((element) => element.addEventListener("change", renderMarksEntry));
+els.marksClassLevelSelect.addEventListener("change", () => {
+  updateMarksStreamOptions();
+  updateMarksSubjectOptions();
+  renderMarksEntry();
+});
+els.marksStreamSelect.addEventListener("change", () => {
+  updateMarksSubjectOptions();
+  renderMarksEntry();
+});
+els.marksImportModeSelect.addEventListener("change", () => {
+  cancelPendingMarksImport();
+  els.uploadSummary.textContent = "No file selected";
+});
 els.saveMarksBtn.addEventListener("click", saveMarks);
 els.downloadTemplateBtn.addEventListener("click", downloadCsvTemplate);
 els.downloadErrorsBtn.addEventListener("click", downloadErrorReport);
+els.uploadMarksCsvBtn.addEventListener("click", uploadPendingMarksCsv);
 els.csvInput.addEventListener("change", (event) => {
   const file = event.target.files[0];
   if (file) importCsv(file).catch((error) => toast(error.message));
 });
 els.deadlineForm.addEventListener("submit", saveDeadline);
 els.approvePromotionBtn.addEventListener("click", approvePromotion);
+els.classComparisonBars.addEventListener("click", (event) => {
+  const row = event.target.closest("[data-analytics-class]");
+  if (!row) return;
+  selectedAnalyticsClass = row.dataset.analyticsClass;
+  selectedAnalyticsStream = "All";
+  renderAnalyticsDrilldown();
+  document.querySelector(".analytics-drill-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+});
+els.analyticsClassSelect.addEventListener("change", () => {
+  selectedAnalyticsClass = els.analyticsClassSelect.value;
+  selectedAnalyticsStream = "All";
+  renderAnalyticsDrilldown();
+});
+els.analyticsStreamSelect.addEventListener("change", () => {
+  selectedAnalyticsStream = els.analyticsStreamSelect.value;
+  renderAnalyticsDrilldown();
+});
+els.analyticsLearnerList.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-student-id]");
+  if (button) openStudentProfile(button.dataset.studentId);
+});
+els.downloadAnalyticsLearnersBtn.addEventListener("click", downloadAnalyticsLearners);
 document.getElementById("refreshBtn").addEventListener("click", async () => {
   await loadData();
   toast(`Data refreshed at ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);

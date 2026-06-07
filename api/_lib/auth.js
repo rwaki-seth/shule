@@ -23,7 +23,7 @@ const ROLE_VIEWS = {
   "Head Teacher": ["dashboard", "students", "monitoring", "promotion", "analytics", "reports"],
   "DOS": ["dashboard", "students", "marks", "monitoring", "promotion", "analytics", "reports"],
   "Class Teacher": ["dashboard", "students", "marks", "reports"],
-  "Subject Teacher": ["dashboard", "marks", "reports"],
+  "Subject Teacher": ["dashboard", "students", "marks"],
   "Viewer": ["dashboard", "reports"]
 };
 

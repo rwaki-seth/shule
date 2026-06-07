@@ -182,14 +182,23 @@
           <section class="panel"><div class="panel-heading"><h2>Streams</h2><span id="streamCount"></span></div><div class="compact-list" id="streamList"></div></section>
           <section class="panel"><div class="panel-heading"><h2>Subjects</h2><span id="subjectCount"></span></div><div class="compact-list" id="subjectList"></div></section>
           <section class="panel"><div class="panel-heading"><h2>Teachers</h2><span id="teacherCount"></span></div><div class="compact-list" id="teacherList"></div></section>
-          <section class="panel"><div class="panel-heading"><h2>Teacher Assignments</h2><span id="assignmentCount"></span></div><div class="compact-list" id="assignmentList"></div></section>
+          <section class="panel assignment-panel">
+            <div class="panel-heading"><h2>Teacher Assignments</h2><span id="assignmentCount"></span></div>
+            <form id="teacherAssignmentForm" class="compact-form">
+              <label>Teacher <select name="teacherId" id="assignmentTeacherSelect"></select></label>
+              <label>Class & Stream <select name="classId" id="assignmentClassSelect"></select></label>
+              <label>Subject <select name="subjectId" id="assignmentSubjectSelect"></select></label>
+              <button type="submit">Assign</button>
+            </form>
+            <div class="compact-list" id="assignmentList"></div>
+          </section>
           <section class="panel"><div class="panel-heading"><h2>Grading Scale</h2><span id="gradingCount"></span></div><div class="compact-list" id="gradingList"></div></section>
           <section class="panel"><div class="panel-heading"><h2>Roles</h2><span id="roleCount"></span></div><div class="compact-list" id="roleList"></div></section>
         </div>
       </section>
 
       <section id="students" class="view">
-        <section class="panel student-import-panel">
+        <section class="panel student-import-panel" id="studentImportPanel">
           <div class="panel-heading">
             <div>
               <h2>Upload Class List</h2>
@@ -198,21 +207,32 @@
             <button id="downloadStudentTemplateBtn" type="button" class="secondary">Download CSV Template</button>
           </div>
           <div class="student-import-grid">
-            <label>Default Class <select id="importClassLevelSelect"></select></label>
-            <label>Default Stream <select id="importStreamSelect"></select></label>
+            <label>Upload Mode
+              <select id="studentImportModeSelect">
+                <option value="single">One class and stream</option>
+                <option value="multi">Multiple classes and streams</option>
+              </select>
+            </label>
+            <label class="student-import-default">Default Class <select id="importClassLevelSelect"></select></label>
+            <label class="student-import-default">Default Stream <select id="importStreamSelect"></select></label>
             <label class="file-drop">Student CSV
               <input id="studentCsvInput" type="file" accept=".csv,text/csv">
-              <span>Choose the CSV saved from Excel</span>
+              <span>Choose a CSV to validate and preview</span>
             </label>
           </div>
           <div class="import-status-row">
             <span id="studentImportSummary">No class list selected</span>
-            <button id="downloadStudentErrorsBtn" type="button" class="secondary" hidden>Download Error Report</button>
+            <div class="actions">
+              <button id="cancelStudentImportBtn" type="button" class="secondary" hidden>Cancel</button>
+              <button id="downloadStudentErrorsBtn" type="button" class="secondary" hidden>Download Error Report</button>
+              <button id="uploadStudentCsvBtn" type="button" disabled>Upload Students</button>
+            </div>
           </div>
           <div id="studentImportErrors" class="error-list"></div>
+          <div id="studentImportPreview" class="import-preview"></div>
         </section>
 
-        <section class="panel">
+        <section class="panel" id="studentCreatePanel">
           <div class="panel-heading">
             <h2>Student Register</h2>
             <span>Active learners appear in marks entry; inactive records remain historical</span>
@@ -241,6 +261,11 @@
           <div class="panel-heading">
             <h2>Register Overview</h2>
             <span id="studentCountLabel"></span>
+          </div>
+          <div class="register-toolbar">
+            <label>Class <select id="studentFilterClassSelect"></select></label>
+            <label>Stream <select id="studentFilterStreamSelect"></select></label>
+            <button id="downloadStudentListBtn" type="button" class="secondary">Download Visible List</button>
           </div>
           <div class="table-wrap">
             <table>
@@ -281,9 +306,16 @@
             <label>Stream <select id="marksStreamSelect"></select></label>
             <label>Subject <select id="subjectSelect"></select></label>
             <label>Teacher <select id="marksTeacherSelect"></select></label>
+            <label>Upload Mode
+              <select id="marksImportModeSelect">
+                <option value="single">Selected class only</option>
+                <option value="multi">Multiple classes</option>
+              </select>
+            </label>
             <label>CSV Upload <input id="csvInput" type="file" accept=".csv,text/csv"></label>
             <button id="downloadTemplateBtn" class="secondary">Download CSV Template</button>
             <button id="downloadErrorsBtn" class="secondary">Download Error Report</button>
+            <button id="uploadMarksCsvBtn" disabled>Upload Validated CSV</button>
             <button id="saveMarksBtn">Save Marks</button>
           </div>
           <div class="table-wrap">
@@ -413,6 +445,17 @@
             <span>Average, highest, lowest, and entries</span>
           </div>
           <div id="subjectBars" class="bar-list"></div>
+        </section>
+        <section class="panel analytics-drill-panel">
+          <div class="panel-heading">
+            <div><h2 id="analyticsDrillTitle">Learners by Class</h2><span>Choose a class, then narrow to a stream</span></div>
+            <button id="downloadAnalyticsLearnersBtn" type="button" class="secondary">Download List</button>
+          </div>
+          <div class="register-toolbar">
+            <label>Class <select id="analyticsClassSelect"></select></label>
+            <label>Stream <select id="analyticsStreamSelect"></select></label>
+          </div>
+          <div id="analyticsLearnerList" class="analytics-learner-list"></div>
         </section>
       </section>
 

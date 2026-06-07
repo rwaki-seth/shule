@@ -16,6 +16,7 @@ const {
 const {
   addStudent,
   addMovement,
+  ensureTeacher,
   importStudents,
   approvePromotion,
   audit,
@@ -23,6 +24,7 @@ const {
   loadDb,
   saveDb,
   saveDeadline,
+  saveTeacherAssignment,
   sendError,
   sendJson,
   storageMode,
@@ -47,6 +49,92 @@ const MIME_TYPES = {
   ".svg": "image/svg+xml",
   ".png": "image/png"
 };
+
+const TEACHER_ROLES = new Set(["Class Teacher", "Subject Teacher"]);
+const SCHOOL_ADMIN_ROLES = ["Super Admin", "School Admin"];
+
+function accessForSession(db, session) {
+  if (!TEACHER_ROLES.has(session.role)) {
+    return { teacherId: "", assignedClassIds: [], assignedSubjectIds: [], assignments: [] };
+  }
+  const teacher = db.teachers.find((item) =>
+    String(item.email || "").trim().toLowerCase() === String(session.email || "").trim().toLowerCase()
+  );
+  const assignments = teacher
+    ? db.teacherAssignments.filter((item) => item.teacherId === teacher.id && item.active !== false)
+    : [];
+  return {
+    teacherId: teacher?.id || "",
+    assignedClassIds: [...new Set(assignments.map((item) => item.classId))],
+    assignedSubjectIds: [...new Set(assignments.map((item) => item.subjectId))],
+    assignments
+  };
+}
+
+function userWithAccess(session, access) {
+  return {
+    ...session,
+    teacherId: access.teacherId,
+    assignedClassIds: access.assignedClassIds,
+    assignedSubjectIds: access.assignedSubjectIds,
+    assignmentWarning: TEACHER_ROLES.has(session.role) && !access.teacherId
+      ? "No teacher profile matches this login email. Ask School Admin to add the teacher and assignments."
+      : ""
+  };
+}
+
+function scopeDbForSession(db, session, access) {
+  if (!TEACHER_ROLES.has(session.role)) return db;
+  const classIds = new Set(access.assignedClassIds);
+  const studentIds = new Set(db.students.filter((student) => classIds.has(student.classId)).map((student) => student.id));
+  const ownAssignmentKeys = new Set(access.assignments.map((item) => `${item.classId}:${item.subjectId}`));
+  const scopedMarks = session.role === "Subject Teacher"
+    ? db.marks.filter((mark) => studentIds.has(mark.studentId) && ownAssignmentKeys.has(`${mark.classId}:${mark.subjectId}`))
+    : db.marks.filter((mark) => studentIds.has(mark.studentId));
+  const subjectIds = session.role === "Subject Teacher"
+    ? new Set(access.assignedSubjectIds)
+    : new Set(db.subjects.map((subject) => subject.id));
+  const levelIds = new Set(db.classes.filter((item) => classIds.has(item.id)).map((item) => item.levelId));
+  const streamIds = new Set(db.classes.filter((item) => classIds.has(item.id)).map((item) => item.streamId));
+  return {
+    ...db,
+    classLevels: db.classLevels.filter((item) => levelIds.has(item.id)),
+    streams: db.streams.filter((item) => streamIds.has(item.id)),
+    classes: db.classes.filter((item) => classIds.has(item.id)),
+    subjects: db.subjects.filter((item) => subjectIds.has(item.id)),
+    teachers: session.role === "Subject Teacher"
+      ? db.teachers.filter((item) => item.id === access.teacherId)
+      : db.teachers,
+    teacherAssignments: access.assignments,
+    students: db.students.filter((student) => classIds.has(student.classId)),
+    marks: scopedMarks,
+    deadlines: db.deadlines.filter((item) => item.teacherId === access.teacherId),
+    uploadBatches: db.uploadBatches.filter((item) => item.teacherId === access.teacherId),
+    uploadErrors: [],
+    movements: db.movements.filter((item) => studentIds.has(item.studentId)),
+    audit: []
+  };
+}
+
+function requireAssignedStudent(db, session, access, studentId) {
+  const student = db.students.find((item) => item.id === studentId || item.admissionNo === studentId);
+  if (!student) throw new Error("Student not found");
+  if (TEACHER_ROLES.has(session.role) && !access.assignedClassIds.includes(student.classId)) {
+    const error = new Error("This learner is outside your assigned classes");
+    error.statusCode = 403;
+    throw error;
+  }
+  return student;
+}
+
+function requireOwnTeacherContext(session, access, body) {
+  if (!TEACHER_ROLES.has(session.role)) return;
+  if (!access.teacherId || access.teacherId !== body.teacherId) {
+    const error = new Error("Teachers may only upload marks under their own assigned account");
+    error.statusCode = 403;
+    throw error;
+  }
+}
 
 function parseBody(req) {
   return new Promise((resolve, reject) => {
@@ -105,9 +193,12 @@ async function handleApi(req, res, pathname, searchParams) {
   }
 
   requireSession(session);
+  const access = accessForSession(db, session);
+  const scopedUser = userWithAccess(session, access);
+  const scopedDb = scopeDbForSession(db, session, access);
 
-  if (req.method === "GET" && pathname === "/api/bootstrap") return sendJson(res, 200, { ...db, currentUser: session, storageMode: storageMode() });
-  if (req.method === "GET" && pathname === "/api/results") return sendJson(res, 200, { ...calculateResults(db), storageMode: storageMode() });
+  if (req.method === "GET" && pathname === "/api/bootstrap") return sendJson(res, 200, { ...scopedDb, currentUser: scopedUser, storageMode: storageMode() });
+  if (req.method === "GET" && pathname === "/api/results") return sendJson(res, 200, { ...calculateResults(scopedDb), storageMode: storageMode() });
   if (req.method === "GET" && pathname === "/api/storage-status") return sendJson(res, 200, storageStatus());
   if (req.method === "GET" && pathname === "/api/users") {
     requireRoles(session, ["Super Admin"]);
@@ -116,8 +207,27 @@ async function handleApi(req, res, pathname, searchParams) {
   if (req.method === "POST" && pathname === "/api/users") {
     requireRoles(session, ["Super Admin"]);
     const body = await parseBody(req);
-    if (body.action === "updateRole") return sendJson(res, 200, await updateUserRole(body));
-    return sendJson(res, 201, await createUser(body));
+    if (body.action === "updateRole") {
+      const user = await updateUserRole(body);
+      if (TEACHER_ROLES.has(user.role)) {
+        ensureTeacher(db, { name: user.name, email: user.email, role: user.role });
+        await saveDb(db);
+      }
+      return sendJson(res, 200, user);
+    }
+    const user = await createUser(body);
+    if (TEACHER_ROLES.has(user.role)) {
+      ensureTeacher(db, { name: user.name, email: user.email, role: user.role });
+      await saveDb(db);
+    }
+    return sendJson(res, 201, user);
+  }
+
+  if (req.method === "POST" && pathname === "/api/teacher-assignments") {
+    requireRoles(session, SCHOOL_ADMIN_ROLES);
+    const assignment = saveTeacherAssignment(db, await parseBody(req));
+    await saveDb(db);
+    return sendJson(res, 201, assignment);
   }
 
   if (req.method === "POST" && pathname === "/api/school") {
@@ -130,24 +240,41 @@ async function handleApi(req, res, pathname, searchParams) {
   }
 
   if (req.method === "POST" && pathname === "/api/students") {
-    requireRoles(session, ["Super Admin", "School Admin", "Head Teacher", "DOS", "Class Teacher"]);
     const body = await parseBody(req);
+    if (body.action === "previewImport") {
+      requireRoles(session, SCHOOL_ADMIN_ROLES);
+      const result = importStudents(db, body, { commit: false });
+      return sendJson(res, result.ok ? 200 : 422, result);
+    }
     if (body.action === "import") {
+      requireRoles(session, SCHOOL_ADMIN_ROLES);
       const result = importStudents(db, body);
       if (!result.ok) return sendJson(res, 422, result);
       await saveDb(db);
       return sendJson(res, 200, result);
     }
     if (body.action === "updatePhoto") {
+      requireRoles(session, SCHOOL_ADMIN_ROLES);
       const student = updateStudentPhoto(db, body);
       await saveDb(db);
       return sendJson(res, 200, student);
     }
     if (body.action === "updateDetails") {
-      const student = updateStudentDetails(db, body);
+      requireRoles(session, ["Super Admin", "School Admin", "Head Teacher", "DOS", "Class Teacher"]);
+      requireAssignedStudent(db, session, access, body.studentId || body.admissionNo);
+      let permittedBody = body;
+      if (session.role === "Class Teacher") {
+        permittedBody = { studentId: body.studentId, reportComments: { classTeacher: body.reportComments?.classTeacher || "" } };
+      } else if (session.role === "DOS") {
+        permittedBody = { studentId: body.studentId, reportComments: { dos: body.reportComments?.dos || "" } };
+      } else if (session.role === "Head Teacher") {
+        permittedBody = { studentId: body.studentId, reportComments: { headTeacher: body.reportComments?.headTeacher || "" } };
+      }
+      const student = updateStudentDetails(db, permittedBody);
       await saveDb(db);
       return sendJson(res, 200, student);
     }
+    requireRoles(session, SCHOOL_ADMIN_ROLES);
     const student = addStudent(db, body);
     await saveDb(db);
     return sendJson(res, 201, student);
@@ -156,46 +283,67 @@ async function handleApi(req, res, pathname, searchParams) {
   if (req.method === "POST" && pathname === "/api/marks") {
     requireRoles(session, ["Super Admin", "School Admin", "DOS", "Class Teacher", "Subject Teacher"]);
     const body = await parseBody(req);
-    if (session.role === "Subject Teacher") {
-      const teacher = db.teachers.find((item) => String(item.email || "").toLowerCase() === String(session.email || "").toLowerCase());
-      if (!teacher || teacher.id !== body.teacherId) {
-        const error = new Error("Subject teachers may only upload marks under their own assigned teacher account");
-        error.statusCode = 403;
-        throw error;
-      }
+    const batches = body.mode === "multi" ? (body.batches || []) : [body];
+    if (body.mode === "multi") requireRoles(session, SCHOOL_ADMIN_ROLES);
+    if (!batches.length) throw new Error("No marks batches were supplied");
+    const validationErrors = [];
+    for (const batch of batches) {
+      const context = {
+        ...batch,
+        academicYear: batch.academicYear || body.academicYear,
+        term: batch.term || body.term,
+        examType: batch.examType || body.examType,
+        subjectId: batch.subjectId || body.subjectId,
+        teacherId: batch.teacherId || body.teacherId
+      };
+      requireOwnTeacherContext(session, access, context);
+      validationErrors.push(...validateMarks(db, context));
     }
-    const errors = validateMarks(db, body);
-    if (errors.length) {
-      db.uploadErrors = errors;
-      db.audit.push(audit("Subject Teacher", "Rejected marks upload", "-", `${errors.length} validation issue(s)`));
+    if (validationErrors.length) {
+      db.uploadErrors = validationErrors;
+      db.audit.push(audit(session.name, "Rejected marks upload", "-", `${validationErrors.length} validation issue(s)`));
       await saveDb(db);
-      return sendJson(res, 422, { ok: false, errors });
+      return sendJson(res, 422, { ok: false, errors: validationErrors });
     }
-    for (const mark of body.marks || []) upsertMark(db, {
-      ...mark,
-      academicYear: body.academicYear,
-      term: body.term,
-      examType: body.examType,
-      classId: body.classId,
-      subjectId: body.subjectId,
-      teacherId: body.teacherId
-    });
+    let savedCount = 0;
+    for (const batch of batches) {
+      const context = {
+        ...batch,
+        academicYear: batch.academicYear || body.academicYear,
+        term: batch.term || body.term,
+        examType: batch.examType || body.examType,
+        subjectId: batch.subjectId || body.subjectId,
+        teacherId: batch.teacherId || body.teacherId
+      };
+      for (const mark of context.marks || []) {
+        upsertMark(db, {
+          ...mark,
+          academicYear: context.academicYear,
+          term: context.term,
+          examType: context.examType,
+          classId: context.classId,
+          subjectId: context.subjectId,
+          teacherId: context.teacherId
+        });
+        savedCount += 1;
+      }
+      db.uploadBatches.push({
+        id: `batch-${Date.now()}-${context.classId}`,
+        teacherId: context.teacherId,
+        classId: context.classId,
+        subjectId: context.subjectId,
+        academicYear: context.academicYear,
+        term: context.term,
+        examType: context.examType,
+        status: "complete",
+        rows: context.marks.length,
+        validRows: context.marks.length,
+        errorRows: 0,
+        uploadedAt: new Date().toISOString()
+      });
+    }
     db.uploadErrors = [];
-    db.uploadBatches.push({
-      id: `batch-${Date.now()}`,
-      teacherId: body.teacherId,
-      classId: body.classId,
-      subjectId: body.subjectId,
-      academicYear: body.academicYear,
-      term: body.term,
-      examType: body.examType,
-      status: "complete",
-      rows: body.marks.length,
-      validRows: body.marks.length,
-      errorRows: 0,
-      uploadedAt: new Date().toISOString()
-    });
-    db.audit.push(audit("Subject Teacher", "Uploaded marks", "-", `${body.marks.length} mark(s)`));
+    db.audit.push(audit(session.name, "Uploaded marks", "-", `${savedCount} mark(s) across ${batches.length} class(es)`));
     await saveDb(db);
     return sendJson(res, 200, { ok: true, results: calculateResults(db) });
   }
@@ -215,7 +363,7 @@ async function handleApi(req, res, pathname, searchParams) {
   }
 
   if (req.method === "POST" && pathname === "/api/movements") {
-    requireRoles(session, ["Super Admin", "School Admin", "Head Teacher", "DOS", "Class Teacher"]);
+    requireRoles(session, SCHOOL_ADMIN_ROLES);
     const movement = addMovement(db, await parseBody(req));
     await saveDb(db);
     return sendJson(res, 201, movement);
