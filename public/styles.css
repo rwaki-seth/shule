@@ -2414,7 +2414,7 @@ button.bar-row:focus-visible {
     grid-template-columns: 1fr;
   }
 
-  .access-form button {
+  .access-form button:not(.password-toggle) {
     width: 100%;
   }
 
