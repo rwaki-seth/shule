@@ -143,6 +143,7 @@ function requireRoles(session, roles) {
 }
 
 async function bootstrapSuperAdmin(req, res, body) {
+  if (!(await bootstrapAvailable())) throw new Error("First Super Admin setup is already complete");
   if (!SETUP_KEY) throw new Error("First-time setup is disabled until SHULE_SETUP_KEY is configured");
   if (!safeEqual(String(body.setupKey || ""), SETUP_KEY)) throw new Error("Invalid first-time setup key");
   const email = String(body.email || "").trim().toLowerCase();
@@ -164,6 +165,20 @@ async function bootstrapSuperAdmin(req, res, body) {
     if (!/already|registered|exists/i.test(error.message)) throw error;
   }
   return login(req, res, { email, password });
+}
+
+async function bootstrapAvailable() {
+  if (!SETUP_KEY || !SUPABASE_URL || !SERVICE_KEY) return false;
+  try {
+    const payload = await authRequest("admin/users?page=1&per_page=1000", {}, true);
+    return !(payload.users || []).some((user) => {
+      const email = String(user.email || "").trim().toLowerCase();
+      return user.app_metadata?.role === "Super Admin" || SUPER_ADMIN_EMAILS.includes(email);
+    });
+  } catch (error) {
+    console.error("Unable to check first Super Admin setup status", error.message);
+    return false;
+  }
 }
 
 async function listUsers() {
@@ -209,6 +224,7 @@ function safeEqual(left, right) {
 
 module.exports = {
   ROLE_VIEWS,
+  bootstrapAvailable,
   bootstrapSuperAdmin,
   clearSessionCookies,
   createUser,

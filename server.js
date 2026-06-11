@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const { URL } = require("url");
 const {
+  bootstrapAvailable,
   bootstrapSuperAdmin,
   clearSessionCookies,
   createUser,
@@ -173,7 +174,11 @@ async function handleApi(req, res, pathname, searchParams) {
 
   const session = await getSession(req, res);
   if (req.method === "GET" && pathname === "/api/auth/session") {
-    return sendJson(res, 200, { authenticated: Boolean(session), user: session });
+    return sendJson(res, 200, {
+      authenticated: Boolean(session),
+      user: session,
+      firstAdminSetupAvailable: session ? false : await bootstrapAvailable()
+    });
   }
 
   const db = await loadDb();

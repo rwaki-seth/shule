@@ -13,6 +13,7 @@ let pendingStudentImport = null;
 let pendingMarksImport = null;
 let selectedAnalyticsClass = "";
 let selectedAnalyticsStream = "All";
+let firstAdminSetupAvailable = false;
 
 const STATUS_OPTIONS = ["Active", "Graduated", "Transferred", "Suspended", "Expelled", "Dropped Out", "Deceased", "Inactive"];
 
@@ -195,8 +196,10 @@ async function loadData() {
 }
 
 async function initializeApp() {
+  initializePasswordToggles();
   try {
     const session = await api("/api/auth/session");
+    firstAdminSetupAvailable = Boolean(session.firstAdminSetupAvailable);
     if (session.authenticated) {
       currentUser = session.user;
       showStaffApp();
@@ -224,6 +227,11 @@ function showPublicPortal() {
   els.staffSidebar.hidden = true;
   els.staffShell.hidden = true;
   els.staffMobileNav.hidden = true;
+  els.showBootstrapBtn.hidden = !firstAdminSetupAvailable;
+  if (!firstAdminSetupAvailable) {
+    els.bootstrapForm.hidden = true;
+    els.showBootstrapBtn.setAttribute("aria-expanded", "false");
+  }
   const match = window.location.hash.match(/^#verify\/(.+)$/);
   if (match) {
     els.publicVerificationCode.value = decodeURIComponent(match[1]);
@@ -1359,12 +1367,38 @@ async function createFirstAdmin(event) {
     const body = Object.fromEntries(new FormData(event.currentTarget).entries());
     const session = await api("/api/auth/bootstrap", { method: "POST", body: JSON.stringify(body) });
     currentUser = session.user;
+    firstAdminSetupAvailable = false;
     els.loginMessage.textContent = "";
     showStaffApp();
     await loadData();
   } catch (error) {
     els.loginMessage.textContent = error.message;
   }
+}
+
+function initializePasswordToggles() {
+  document.querySelectorAll('input[type="password"]').forEach((input) => {
+    if (input.parentElement?.classList.contains("password-field")) return;
+    const wrapper = document.createElement("span");
+    wrapper.className = "password-field";
+    input.parentNode.insertBefore(wrapper, input);
+    wrapper.appendChild(input);
+
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "password-toggle";
+    toggle.setAttribute("aria-label", "Show password");
+    toggle.title = "Show password";
+    toggle.innerHTML = '<span class="password-eye" aria-hidden="true"></span>';
+    toggle.addEventListener("click", () => {
+      const showPassword = input.type === "password";
+      input.type = showPassword ? "text" : "password";
+      toggle.classList.toggle("is-visible", showPassword);
+      toggle.setAttribute("aria-label", showPassword ? "Hide password" : "Show password");
+      toggle.title = showPassword ? "Hide password" : "Show password";
+    });
+    wrapper.appendChild(toggle);
+  });
 }
 
 async function signOut() {
@@ -1776,6 +1810,7 @@ els.loginForm?.addEventListener("submit", signIn);
 els.bootstrapForm?.addEventListener("submit", createFirstAdmin);
 els.showBootstrapBtn?.addEventListener("click", () => {
   els.bootstrapForm.hidden = !els.bootstrapForm.hidden;
+  els.showBootstrapBtn.setAttribute("aria-expanded", String(!els.bootstrapForm.hidden));
 });
 els.publicVerificationForm?.addEventListener("submit", (event) => verifyPublicReport(event).catch(() => {}));
 els.logoutBtn?.addEventListener("click", signOut);
