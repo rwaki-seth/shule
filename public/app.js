@@ -14,6 +14,9 @@ let pendingMarksImport = null;
 let selectedAnalyticsClass = "";
 let selectedAnalyticsStream = "All";
 let firstAdminSetupAvailable = false;
+let publicBranding = null;
+let promotionFilter = "ALL";
+const promotionOverrides = new Map();
 
 const STATUS_OPTIONS = ["Active", "Graduated", "Transferred", "Suspended", "Expelled", "Dropped Out", "Deceased", "Inactive"];
 
@@ -29,6 +32,15 @@ const els = {
   publicVerificationForm: document.getElementById("publicVerificationForm"),
   publicVerificationCode: document.getElementById("publicVerificationCode"),
   publicVerificationContent: document.getElementById("publicVerificationContent"),
+  accessBrandMark: document.getElementById("accessBrandMark"),
+  accessBrandName: document.getElementById("accessBrandName"),
+  accessBrandSubtitle: document.getElementById("accessBrandSubtitle"),
+  sidebarBrandMark: document.getElementById("sidebarBrandMark"),
+  sidebarBrandName: document.getElementById("sidebarBrandName"),
+  sidebarBrandMotto: document.getElementById("sidebarBrandMotto"),
+  mobileBrandMark: document.getElementById("mobileBrandMark"),
+  mobileBrandName: document.getElementById("mobileBrandName"),
+  mobileBrandMotto: document.getElementById("mobileBrandMotto"),
   currentUserRole: document.getElementById("currentUserRole"),
   logoutBtn: document.getElementById("logoutBtn"),
   pageTitle: document.getElementById("pageTitle"),
@@ -70,6 +82,8 @@ const els = {
   studentRegisterBody: document.getElementById("studentRegisterBody"),
   studentFilterClassSelect: document.getElementById("studentFilterClassSelect"),
   studentFilterStreamSelect: document.getElementById("studentFilterStreamSelect"),
+  studentFilterStatusSelect: document.getElementById("studentFilterStatusSelect"),
+  studentSearchInput: document.getElementById("studentSearchInput"),
   downloadStudentListBtn: document.getElementById("downloadStudentListBtn"),
   studentProfileContent: document.getElementById("studentProfileContent"),
   backToStudentsBtn: document.getElementById("backToStudentsBtn"),
@@ -108,9 +122,16 @@ const els = {
   execPromotion: document.getElementById("execPromotion"),
   execUploads: document.getElementById("execUploads"),
   execSubjects: document.getElementById("execSubjects"),
+  execTopSubject: document.getElementById("execTopSubject"),
+  execTopSubjectScore: document.getElementById("execTopSubjectScore"),
+  execLowestSubject: document.getElementById("execLowestSubject"),
+  execLowestSubjectScore: document.getElementById("execLowestSubjectScore"),
+  execAtRisk: document.getElementById("execAtRisk"),
   classComparisonBars: document.getElementById("classComparisonBars"),
   genderAnalysis: document.getElementById("genderAnalysis"),
   streamAnalysis: document.getElementById("streamAnalysis"),
+  performanceBandAnalysis: document.getElementById("performanceBandAnalysis"),
+  classSubjectBars: document.getElementById("classSubjectBars"),
   analyticsClassSelect: document.getElementById("analyticsClassSelect"),
   analyticsStreamSelect: document.getElementById("analyticsStreamSelect"),
   analyticsLearnerList: document.getElementById("analyticsLearnerList"),
@@ -122,6 +143,8 @@ const els = {
   promotionRepeatMetric: document.getElementById("promotionRepeatMetric"),
   promotionBody: document.getElementById("promotionBody"),
   approvePromotionBtn: document.getElementById("approvePromotionBtn"),
+  showAllPromotionsBtn: document.getElementById("showAllPromotionsBtn"),
+  promotionActionStatus: document.getElementById("promotionActionStatus"),
   reportModeLabel: document.getElementById("reportModeLabel"),
   reportClassSelect: document.getElementById("reportClassSelect"),
   reportStudentSelect: document.getElementById("reportStudentSelect"),
@@ -197,6 +220,7 @@ async function loadData() {
 
 async function initializeApp() {
   initializePasswordToggles();
+  await loadPublicBranding();
   try {
     const session = await api("/api/auth/session");
     firstAdminSetupAvailable = Boolean(session.firstAdminSetupAvailable);
@@ -210,6 +234,62 @@ async function initializeApp() {
     console.error("Session check failed", error);
   }
   showPublicPortal();
+}
+
+async function loadPublicBranding() {
+  try {
+    publicBranding = await api("/api/branding");
+    applyBranding(publicBranding);
+  } catch (error) {
+    console.error("School branding load failed", error);
+  }
+}
+
+function applyBranding(school = {}) {
+  const root = document.documentElement;
+  const colors = {
+    "--primary": school.primaryColor,
+    "--secondary": school.secondaryColor,
+    "--gold": school.accentColor,
+    "--light-gold": school.accentColor
+  };
+  for (const [property, value] of Object.entries(colors)) {
+    if (/^#[0-9a-f]{6}$/i.test(value || "")) root.style.setProperty(property, value);
+  }
+  const name = school.name || "Shule Results Management";
+  const shortName = school.shortName || "SHULE";
+  const motto = school.motto || "Results Management";
+  document.title = `${name} Results`;
+  setText(els.accessBrandName, name);
+  setText(els.accessBrandSubtitle, `${motto} | Results and report verification`);
+  setText(els.sidebarBrandName, name);
+  setText(els.sidebarBrandMotto, motto);
+  setText(els.mobileBrandName, name);
+  setText(els.mobileBrandMotto, motto);
+  for (const mark of [els.accessBrandMark, els.sidebarBrandMark, els.mobileBrandMark]) {
+    if (!mark) continue;
+    mark.replaceChildren();
+    if (school.logoUrl) {
+      const image = document.createElement("img");
+      image.src = school.logoUrl;
+      image.alt = `${name} logo`;
+      image.addEventListener("error", () => {
+        mark.replaceChildren(document.createTextNode(shortName));
+      }, { once: true });
+      mark.appendChild(image);
+    } else {
+      mark.textContent = shortName;
+    }
+  }
+  if (els.publicVerificationCode) {
+    const prefix = school.verificationPrefix || shortName;
+    els.publicVerificationCode.placeholder = `${prefix}-2026-...`;
+    if (els.verificationCodeInput) els.verificationCodeInput.placeholder = `${prefix}-2026-...`;
+  }
+}
+
+function setText(element, value) {
+  if (element) element.textContent = value;
 }
 
 function showStaffApp() {
@@ -285,6 +365,7 @@ function renderAll() {
 }
 
 function renderSchoolMeta() {
+  applyBranding(db.school);
   els.schoolMeta.textContent = `${db.school.academicYear} | ${db.school.term} | ${db.school.exam}`;
   els.heroSchool.textContent = db.school.name;
   setValue("schoolNameInput", db.school.name);
@@ -295,6 +376,12 @@ function renderSchoolMeta() {
   setValue("schoolAddressInput", db.school.address);
   setValue("schoolLogoInput", db.school.logoUrl);
   setValue("schoolWatermarkInput", db.school.watermarkText);
+  setValue("schoolTenantCodeInput", db.school.tenantCode);
+  setValue("schoolPortalUrlInput", db.school.portalUrl);
+  setValue("schoolVerificationPrefixInput", db.school.verificationPrefix);
+  setValue("schoolPrimaryColorInput", db.school.primaryColor);
+  setValue("schoolSecondaryColorInput", db.school.secondaryColor);
+  setValue("schoolAccentColorInput", db.school.accentColor);
   const reportForm = els.reportSettingsForm;
   if (reportForm) {
     for (const [name, value] of Object.entries({ ...db.comments, ...db.nextTerm })) {
@@ -355,6 +442,11 @@ function renderSelects() {
   els.studentStatusSelect.innerHTML = STATUS_OPTIONS.map((status) => `<option>${status}</option>`).join("");
   setOptions(els.studentFilterClassSelect, `<option value="All">All classes</option>${levels}`, "All");
   setOptions(els.studentFilterStreamSelect, `<option value="All">All streams</option>${streams}`, "All");
+  setOptions(
+    els.studentFilterStatusSelect,
+    `<option value="All">All statuses</option>${STATUS_OPTIONS.map((status) => `<option value="${status}">${status}</option>`).join("")}`,
+    "All"
+  );
 
   setOptions(els.marksAcademicYearSelect, years, db.school.academicYear);
   setOptions(els.marksTermSelect, terms, db.school.term);
@@ -523,18 +615,32 @@ function renderStudents() {
         <td><button type="button" class="secondary student-view-button" data-student-id="${escapeHtml(student.id)}">View</button></td>
       </tr>
     `;
-  }).join("") || `<tr><td colspan="10">No learners match the selected class and stream.</td></tr>`;
+  }).join("") || `<tr><td colspan="10">No learners match the current search and filters.</td></tr>`;
   decorateMobileTables();
 }
 
 function visibleRegisterStudents() {
   const classLevel = els.studentFilterClassSelect?.value || "All";
   const stream = els.studentFilterStreamSelect?.value || "All";
+  const status = els.studentFilterStatusSelect?.value || "All";
+  const query = String(els.studentSearchInput?.value || "").trim().toLowerCase();
   return db.students
     .filter((student) => {
       const classInfo = classById(student.classId) || {};
+      const searchable = [
+        student.name,
+        student.admissionNo,
+        student.studentId,
+        student.guardian,
+        student.contact,
+        student.alternativeContact,
+        student.house,
+        classInfo.name
+      ].join(" ").toLowerCase();
       return (classLevel === "All" || (classInfo.level || student.classLevel) === classLevel) &&
-        (stream === "All" || (classInfo.stream || student.stream) === stream);
+        (stream === "All" || (classInfo.stream || student.stream) === stream) &&
+        (status === "All" || student.status === status) &&
+        (!query || searchable.includes(query));
     })
     .sort((a, b) => {
       const aClass = classById(a.classId)?.name || "";
@@ -624,6 +730,7 @@ function renderStudentProfile() {
       <div><h3>Administrative Notes</h3><p>${escapeHtml(student.notes || "No notes recorded.")}</p></div>
       <div><h3>Competencies</h3><div class="competency-list">${Object.entries(student.competencies || {}).map(([label, value]) => `<span>${escapeHtml(label)} <strong>${escapeHtml(value)}/5</strong></span>`).join("")}</div></div>
     </section>
+    ${renderStudentTrend(academic)}
     ${renderStudentProfileWorkspace(student, attendance, classOptions)}
     <section class="profile-detail-band">
       <div class="panel-heading"><h3>Learner Journey</h3><span>${movements.length} movement record(s)</span></div>
@@ -635,6 +742,32 @@ function renderStudentProfile() {
   document.getElementById("profilePhotoInput")?.addEventListener("change", updateProfilePhoto);
   document.getElementById("studentDetailsForm")?.addEventListener("submit", saveStudentDetails);
   document.getElementById("studentMovementForm")?.addEventListener("submit", saveStudentMovement);
+}
+
+function renderStudentTrend(student) {
+  const trend = student?.trend || [];
+  if (!trend.length) {
+    return `<section class="profile-detail-band"><div class="panel-heading"><h3>Performance Trend</h3><span>No captured assessment history yet</span></div></section>`;
+  }
+  const previous = trend.at(-2);
+  const latest = trend.at(-1);
+  const change = previous ? Math.round((latest.average - previous.average) * 10) / 10 : null;
+  return `
+    <section class="profile-detail-band">
+      <div class="panel-heading">
+        <h3>Performance Trend</h3>
+        <span>${change === null ? "First captured assessment" : `${change >= 0 ? "+" : ""}${change} points since the previous assessment`}</span>
+      </div>
+      <div class="trend-chart">
+        ${trend.map((item) => `
+          <article>
+            <div class="trend-bar"><span style="height:${Math.max(5, item.average)}%"></span></div>
+            <strong>${item.average}</strong>
+            <small>${escapeHtml(item.label)}</small>
+          </article>
+        `).join("")}
+      </div>
+    </section>`;
 }
 
 function renderStudentProfileWorkspace(student, attendance, classOptions) {
@@ -767,7 +900,28 @@ function renderPromotion() {
   els.promotionPromoteMetric.textContent = preview.filter((item) => item.decision === "PROMOTED").length;
   els.promotionReviewMetric.textContent = preview.filter((item) => item.decision === "MANUAL REVIEW").length;
   els.promotionRepeatMetric.textContent = preview.filter((item) => item.decision === "REPEAT").length;
-  els.promotionBody.innerHTML = preview.map((item) => `
+  document.querySelectorAll(".promotion-filter").forEach((button) => {
+    button.classList.toggle("active", button.dataset.promotionFilter === promotionFilter);
+  });
+  const filtered = preview.filter((item) => {
+    const decision = promotionOverrides.get(item.studentId)?.decision || item.decision;
+    return promotionFilter === "ALL" || decision === promotionFilter;
+  });
+  const unresolved = preview.filter((item) =>
+    (promotionOverrides.get(item.studentId)?.decision || item.decision) === "MANUAL REVIEW"
+  ).length;
+  els.promotionActionStatus.textContent = `${filtered.length} shown | ${unresolved} still require a decision`;
+  els.promotionBody.innerHTML = filtered.map((item) => {
+    const override = promotionOverrides.get(item.studentId) || {};
+    const decision = override.decision || item.decision;
+    const targetClassId = decision === "REPEAT"
+      ? item.currentClassId
+      : override.targetClassId || item.targetClassId;
+    const targetOptions = [
+      ...db.classes.map((classInfo) => `<option value="${classInfo.id}" ${classInfo.id === targetClassId ? "selected" : ""}>${escapeHtml(classInfo.name)}</option>`),
+      `<option value="graduated" ${targetClassId === "graduated" ? "selected" : ""}>Graduate</option>`
+    ].join("");
+    return `
     <tr>
       <td>${escapeHtml(item.admissionNo)}</td>
       <td>${escapeHtml(item.name)}</td>
@@ -775,10 +929,19 @@ function renderPromotion() {
       <td>${item.average}</td>
       <td>${item.failedSubjects}</td>
       <td>${item.missingSubjects}</td>
-      <td><span class="pill ${promotionClass(item.decision)}">${escapeHtml(item.decision)}</span></td>
-      <td>${escapeHtml(item.targetClassId === "graduated" ? "Graduate" : classById(item.targetClassId)?.name || item.targetClassId)}</td>
+      <td>
+        <select class="promotion-decision" data-student-id="${escapeHtml(item.studentId)}">
+          <option value="MANUAL REVIEW" ${decision === "MANUAL REVIEW" ? "selected" : ""}>Manual Review</option>
+          <option value="PROMOTED" ${decision === "PROMOTED" ? "selected" : ""}>Promote</option>
+          <option value="REPEAT" ${decision === "REPEAT" ? "selected" : ""}>Repeat</option>
+        </select>
+        <input class="promotion-note" data-student-id="${escapeHtml(item.studentId)}" value="${escapeHtml(override.notes || "")}" placeholder="Review note">
+      </td>
+      <td><select class="promotion-target" data-student-id="${escapeHtml(item.studentId)}" ${decision !== "PROMOTED" ? "disabled" : ""}>${targetOptions}</select></td>
     </tr>
-  `).join("");
+  `;
+  }).join("") || `<tr><td colspan="8">No learners match this promotion filter.</td></tr>`;
+  decorateMobileTables();
 }
 
 function renderAnalytics() {
@@ -789,13 +952,24 @@ function renderAnalytics() {
   els.execPromotion.textContent = `${executive.promotionRate || 0}%`;
   els.execUploads.textContent = `${executive.uploadCompletion || 0}%`;
   els.execSubjects.textContent = `${executive.subjectsSubmitted || 0}/${results.counts.subjects}`;
+  els.execTopSubject.textContent = executive.topSubject?.subjectName || "-";
+  els.execTopSubjectScore.textContent = executive.topSubject ? `${executive.topSubject.average} average | ${executive.topSubject.passRate}% pass` : "No data";
+  els.execLowestSubject.textContent = executive.lowestSubject?.subjectName || "-";
+  els.execLowestSubjectScore.textContent = executive.lowestSubject ? `${executive.lowestSubject.average} average | ${executive.lowestSubject.passRate}% pass` : "No data";
+  els.execAtRisk.textContent = executive.atRiskLearners || 0;
   els.classComparisonBars.innerHTML = renderSummaryBars(executive.classComparison || []);
   els.genderAnalysis.innerHTML = renderSummaryList(executive.genderAnalysis || []);
   els.streamAnalysis.innerHTML = renderSummaryList(executive.streamAnalysis || []);
+  els.performanceBandAnalysis.innerHTML = (executive.performanceBands || []).map((band) => `
+    <article class="performance-band ${escapeHtml(band.id)}">
+      <div><strong>${escapeHtml(band.name)}</strong><span>${band.min}-${Math.floor(band.max)} average</span></div>
+      <strong>${band.learners}</strong>
+    </article>
+  `).join("");
   const maxAverage = Math.max(...results.subjectStats.map((subject) => subject.average), 100);
   els.subjectBars.innerHTML = results.subjectStats.map((subject) => `
     <div class="bar-row">
-      <div><strong>${escapeHtml(subject.subjectName)}</strong><span>${subject.entries} entries | High ${subject.highest} | Low ${subject.lowest}</span></div>
+      <div><strong>${escapeHtml(subject.subjectName)}</strong><span>${subject.entries} entries | ${subject.passRate}% pass | ${subject.missing} missing | High ${subject.highest} | Low ${subject.lowest}</span></div>
       <div class="bar-track"><span style="width:${Math.max(4, (subject.average / maxAverage) * 100)}%"></span></div>
       <strong>${subject.average}</strong>
     </div>
@@ -839,15 +1013,54 @@ function renderAnalyticsDrilldown() {
   );
   selectedAnalyticsStream = els.analyticsStreamSelect.value;
   const learners = analyticsDrillLearners();
+  const subjectRows = selectedClassSubjectAnalysis(learners);
   els.analyticsDrillTitle.textContent = `${selectedAnalyticsClass || "Class"} ${selectedAnalyticsStream === "All" ? "" : selectedAnalyticsStream} Learners`.trim();
+  els.classSubjectBars.innerHTML = subjectRows.map((subject) => `
+    <div class="bar-row">
+      <div><strong>${escapeHtml(subject.subjectName)}</strong><span>${subject.entries} results | ${subject.passRate}% pass | ${subject.missing} missing</span></div>
+      <div class="bar-track"><span style="width:${Math.max(4, subject.average)}%"></span></div>
+      <strong>${subject.average}</strong>
+    </div>
+  `).join("") || `<div class="empty-state">No subject results are available for this class selection.</div>`;
   els.analyticsLearnerList.innerHTML = learners.map((student) => `
     <article>
       <div><strong>${escapeHtml(student.name)}</strong><span>${escapeHtml(student.admissionNo)} | ${escapeHtml(student.className)} ${escapeHtml(student.stream)}</span></div>
       <div><span>Average</span><strong>${student.average}</strong></div>
       <div><span>Position</span><strong>${student.streamPosition || student.classPosition || "-"}</strong></div>
+      <div><span>Trend</span><strong>${studentTrendLabel(student.trend)}</strong></div>
       <button type="button" class="secondary analytics-student-view" data-student-id="${escapeHtml(student.id)}">View</button>
     </article>
   `).join("") || `<div class="empty-state">No learners found for this class and stream.</div>`;
+}
+
+function selectedClassSubjectAnalysis(learners) {
+  const minimumPassMark = currentPassMark();
+  return db.subjects.map((subject) => {
+    const rows = learners.map((student) => student.subjects.find((item) => item.subjectId === subject.id));
+    const scores = rows.filter((row) => row?.status === "Captured").map((row) => Number(row.score));
+    const passed = scores.filter((score) => score >= minimumPassMark).length;
+    return {
+      subjectName: subject.name,
+      entries: scores.length,
+      average: scores.length ? Math.round((scores.reduce((sum, score) => sum + score, 0) / scores.length) * 10) / 10 : 0,
+      passRate: scores.length ? Math.round((passed / scores.length) * 100) : 0,
+      missing: rows.filter((row) => row?.status !== "Captured").length
+    };
+  }).filter((subject) => subject.entries || subject.missing);
+}
+
+function currentPassMark() {
+  const passing = db.gradingScale
+    .filter((row) => String(row.grade).toUpperCase() !== "F9" && Number(row.aggregate) < 9)
+    .map((row) => Number(row.min))
+    .filter(Number.isFinite);
+  return passing.length ? Math.min(...passing) : 40;
+}
+
+function studentTrendLabel(trend = []) {
+  if (trend.length < 2) return trend.length ? "New" : "-";
+  const change = Math.round((trend.at(-1).average - trend.at(-2).average) * 10) / 10;
+  return `${change >= 0 ? "+" : ""}${change}`;
 }
 
 function analyticsDrillLearners() {
@@ -912,9 +1125,9 @@ function renderReportPacket(student) {
 function renderReportPageOne(student) {
   return `
     <section class="report-page page-one">
-      <div class="watermark">${escapeHtml(db.school.watermarkText || "MJA")}</div>
+      <div class="watermark">${escapeHtml(db.school.watermarkText || db.school.shortName || "SHULE")}</div>
       <header class="report-header">
-        <div class="logo-box">${db.school.logoUrl ? `<img src="${escapeHtml(db.school.logoUrl)}" alt="Logo">` : "MJA"}</div>
+        <div class="logo-box">${db.school.logoUrl ? `<img src="${escapeHtml(db.school.logoUrl)}" alt="Logo">` : escapeHtml(db.school.shortName || "SHULE")}</div>
         <div>
           <h2>${escapeHtml(results.school.name)}</h2>
           <p>${escapeHtml(results.school.motto)}</p>
@@ -1011,6 +1224,9 @@ function reportFooter(student) {
 async function saveSchoolProfile(event) {
   event.preventDefault();
   const body = Object.fromEntries(new FormData(els.schoolProfileForm).entries());
+  body.tenantCode = String(body.tenantCode || body.shortName || "school").trim().toLowerCase().replace(/[^a-z0-9-]+/g, "-");
+  body.verificationPrefix = String(body.verificationPrefix || body.shortName || "SHULE").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
+  body.portalUrl = body.portalUrl || window.location.origin;
   await api("/api/school", { method: "POST", body: JSON.stringify(body) });
   toast("School profile saved");
   await loadData();
@@ -1059,13 +1275,14 @@ async function saveStudent(event) {
 function downloadStudentTemplate() {
   const level = els.importClassLevelSelect.value || "P6";
   const stream = els.importStreamSelect.value || "East";
+  const prefix = db.school.verificationPrefix || db.school.shortName || "STU";
   const headers = ["Admission Number", "Student ID", "Full Name", "Gender", "Date of Birth", "Class", "Stream", "House", "Parent/Guardian", "Parent Contact", "Status", "Admission Date", "Attendance", "Notes"];
   const examples = els.studentImportModeSelect.value === "multi"
     ? [
-        ["MJA-NEW-001", "MJA-NEW-001", "First Student", "F", "2014-01-31", "P6", "East", "Blue", "Parent Name", "+256700000000", "Active", new Date().toISOString().slice(0, 10), "90", ""],
-        ["MJA-NEW-002", "MJA-NEW-002", "Second Student", "M", "2015-04-18", "P5", "West", "Red", "Parent Name", "+256700000001", "Active", new Date().toISOString().slice(0, 10), "92", ""]
+        [`${prefix}-NEW-001`, `${prefix}-NEW-001`, "First Student", "F", "2014-01-31", "P6", "East", "Blue", "Parent Name", "+256700000000", "Active", new Date().toISOString().slice(0, 10), "90", ""],
+        [`${prefix}-NEW-002`, `${prefix}-NEW-002`, "Second Student", "M", "2015-04-18", "P5", "West", "Red", "Parent Name", "+256700000001", "Active", new Date().toISOString().slice(0, 10), "92", ""]
       ]
-    : [["MJA-NEW-001", "MJA-NEW-001", "Student Full Name", "F", "2014-01-31", level, stream, "Blue", "Parent Name", "+256700000000", "Active", new Date().toISOString().slice(0, 10), "90", ""]];
+    : [[`${prefix}-NEW-001`, `${prefix}-NEW-001`, "Student Full Name", "F", "2014-01-31", level, stream, "Blue", "Parent Name", "+256700000000", "Active", new Date().toISOString().slice(0, 10), "90", ""]];
   const filename = els.studentImportModeSelect.value === "multi"
     ? "all_classes_student_import.csv"
     : `${level}_${stream}_student_class_list.csv`;
@@ -1618,9 +1835,24 @@ async function saveDeadline(event) {
 }
 
 async function approvePromotion() {
-  await api("/api/promotions", { method: "POST", body: JSON.stringify({ approvedBy: "Head Teacher" }) });
-  toast("Promotion approved and history saved");
-  await loadData();
+  els.approvePromotionBtn.disabled = true;
+  els.approvePromotionBtn.textContent = "Approving...";
+  try {
+    const history = await api("/api/promotions", {
+      method: "POST",
+      body: JSON.stringify({
+        approvedBy: currentUser?.name || "School Administration",
+        overrides: [...promotionOverrides.entries()].map(([studentId, value]) => ({ studentId, ...value }))
+      })
+    });
+    promotionOverrides.clear();
+    promotionFilter = "ALL";
+    toast(`${history.rows.length} decisions approved; ${history.unresolved.length} remain under review`);
+    await loadData();
+  } finally {
+    els.approvePromotionBtn.disabled = false;
+    els.approvePromotionBtn.textContent = "Approve Resolved Decisions";
+  }
 }
 
 function viewStudentReport() {
@@ -1835,6 +2067,8 @@ els.studentCsvInput.addEventListener("change", (event) => {
 });
 els.studentFilterClassSelect.addEventListener("change", renderStudents);
 els.studentFilterStreamSelect.addEventListener("change", renderStudents);
+els.studentFilterStatusSelect.addEventListener("change", renderStudents);
+els.studentSearchInput.addEventListener("input", renderStudents);
 els.downloadStudentListBtn.addEventListener("click", downloadVisibleStudentList);
 els.studentRegisterBody.addEventListener("click", (event) => {
   const row = event.target.closest("[data-student-id]");
@@ -1874,6 +2108,28 @@ els.csvInput.addEventListener("change", (event) => {
 });
 els.deadlineForm.addEventListener("submit", saveDeadline);
 els.approvePromotionBtn.addEventListener("click", approvePromotion);
+els.showAllPromotionsBtn.addEventListener("click", () => {
+  promotionFilter = "ALL";
+  renderPromotion();
+});
+document.querySelectorAll(".promotion-filter").forEach((button) => {
+  button.addEventListener("click", () => {
+    promotionFilter = button.dataset.promotionFilter;
+    renderPromotion();
+    document.querySelector("#promotion .panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+});
+els.promotionBody.addEventListener("change", (event) => {
+  const control = event.target.closest("[data-student-id]");
+  if (!control) return;
+  const studentId = control.dataset.studentId;
+  const current = promotionOverrides.get(studentId) || {};
+  if (control.classList.contains("promotion-decision")) current.decision = control.value;
+  if (control.classList.contains("promotion-target")) current.targetClassId = control.value;
+  if (control.classList.contains("promotion-note")) current.notes = control.value;
+  promotionOverrides.set(studentId, current);
+  if (control.classList.contains("promotion-decision")) renderPromotion();
+});
 els.classComparisonBars.addEventListener("click", (event) => {
   const row = event.target.closest("[data-analytics-class]");
   if (!row) return;

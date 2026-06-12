@@ -9,8 +9,8 @@
   <body>
     <section id="accessPortal" class="access-portal">
       <div class="access-brand">
-        <div class="brand-mark">MJA</div>
-        <div><strong>Makindye Junior Academy</strong><span>Results and report verification</span></div>
+        <div class="brand-mark" id="accessBrandMark">MJA</div>
+        <div><strong id="accessBrandName">Makindye Junior Academy</strong><span id="accessBrandSubtitle">Results and report verification</span></div>
       </div>
       <div class="access-grid">
         <section class="access-verification">
@@ -46,10 +46,10 @@
 
     <aside class="sidebar" id="staffSidebar" hidden>
       <div class="brand">
-        <div class="brand-mark">MJA</div>
+        <div class="brand-mark" id="sidebarBrandMark">MJA</div>
         <div>
-          <strong>Makindye Junior Academy</strong>
-          <span>Head • Heart • Hand</span>
+          <strong id="sidebarBrandName">Makindye Junior Academy</strong>
+          <span id="sidebarBrandMotto">Head - Heart - Hand</span>
         </div>
       </div>
       <nav>
@@ -68,10 +68,10 @@
     <main class="app-shell" id="staffShell" hidden>
       <header class="topbar">
         <div class="mobile-school-brand">
-          <div class="mobile-brand-mark">MJA</div>
+          <div class="mobile-brand-mark" id="mobileBrandMark">MJA</div>
           <div>
-            <strong>Makindye Junior Academy</strong>
-            <span>Head - Heart - Hand</span>
+            <strong id="mobileBrandName">Makindye Junior Academy</strong>
+            <span id="mobileBrandMotto">Head - Heart - Hand</span>
           </div>
         </div>
         <div class="page-heading">
@@ -155,8 +155,19 @@
             <label>Address <input name="address" id="schoolAddressInput"></label>
             <label>Logo URL <input name="logoUrl" id="schoolLogoInput"></label>
             <label>Watermark <input name="watermarkText" id="schoolWatermarkInput"></label>
+            <label>School / Tenant Code <input name="tenantCode" id="schoolTenantCodeInput" placeholder="mja"></label>
+            <label>Portal URL <input name="portalUrl" id="schoolPortalUrlInput" type="url" placeholder="https://results.school.ac.ug"></label>
+            <label>Verification Prefix <input name="verificationPrefix" id="schoolVerificationPrefixInput" maxlength="12" placeholder="MJA"></label>
+            <label>Primary Colour <input name="primaryColor" id="schoolPrimaryColorInput" type="color"></label>
+            <label>Secondary Colour <input name="secondaryColor" id="schoolSecondaryColorInput" type="color"></label>
+            <label>Accent Colour <input name="accentColor" id="schoolAccentColorInput" type="color"></label>
             <button type="submit">Save School Profile</button>
           </form>
+          <div class="deployment-readiness">
+            <div><span>Installation</span><strong>Isolated school deployment</strong></div>
+            <div><span>Data boundary</span><strong>Dedicated Supabase project</strong></div>
+            <div><span>Distribution</span><strong>School domain or Vercel URL</strong></div>
+          </div>
         </section>
 
         <section class="panel">
@@ -263,8 +274,12 @@
             <span id="studentCountLabel"></span>
           </div>
           <div class="register-toolbar">
+            <label class="student-search-field">Search
+              <input id="studentSearchInput" type="search" placeholder="Name, admission no. or contact">
+            </label>
             <label>Class <select id="studentFilterClassSelect"></select></label>
             <label>Stream <select id="studentFilterStreamSelect"></select></label>
+            <label>Status <select id="studentFilterStatusSelect"></select></label>
             <button id="downloadStudentListBtn" type="button" class="secondary">Download Visible List</button>
           </div>
           <div class="table-wrap">
@@ -404,9 +419,9 @@
       <section id="promotion" class="view">
         <div class="metric-grid">
           <article class="metric"><span>Promotion Rule</span><strong id="promotionRuleMetric">-</strong></article>
-          <article class="metric status-complete"><span>Promote</span><strong id="promotionPromoteMetric">0</strong></article>
-          <article class="metric status-pending"><span>Manual Review</span><strong id="promotionReviewMetric">0</strong></article>
-          <article class="metric status-late"><span>Repeat</span><strong id="promotionRepeatMetric">0</strong></article>
+          <button type="button" class="metric promotion-filter status-complete" data-promotion-filter="PROMOTED"><span>Promote</span><strong id="promotionPromoteMetric">0</strong></button>
+          <button type="button" class="metric promotion-filter status-pending" data-promotion-filter="MANUAL REVIEW"><span>Manual Review</span><strong id="promotionReviewMetric">0</strong></button>
+          <button type="button" class="metric promotion-filter status-late" data-promotion-filter="REPEAT"><span>Repeat</span><strong id="promotionRepeatMetric">0</strong></button>
         </div>
         <section class="panel">
           <div class="panel-heading">
@@ -414,7 +429,9 @@
             <span>Preview, approve, update class/stream, and save promotion history</span>
           </div>
           <div class="actions">
-            <button id="approvePromotionBtn">Approve Promotion</button>
+            <button id="approvePromotionBtn">Approve Resolved Decisions</button>
+            <button id="showAllPromotionsBtn" type="button" class="secondary">Show All</button>
+            <span id="promotionActionStatus" class="action-status"></span>
           </div>
           <div class="table-wrap">
             <table>
@@ -433,11 +450,15 @@
           <article class="metric status-complete"><span>Promotion Rate</span><strong id="execPromotion">0%</strong></article>
           <article class="metric"><span>Upload Completion</span><strong id="execUploads">0%</strong></article>
           <article class="metric"><span>Subjects Submitted</span><strong id="execSubjects">0</strong></article>
+          <article class="metric status-complete"><span>Best Subject</span><strong id="execTopSubject">-</strong><small id="execTopSubjectScore">No data</small></article>
+          <article class="metric status-late"><span>Needs Attention</span><strong id="execLowestSubject">-</strong><small id="execLowestSubjectScore">No data</small></article>
+          <article class="metric status-pending"><span>At Risk Learners</span><strong id="execAtRisk">0</strong><small>Average below pass mark</small></article>
         </div>
         <div class="analytics-summary-grid">
           <section class="panel"><div class="panel-heading"><h2>Class Comparison</h2><span>Average by class</span></div><div id="classComparisonBars" class="bar-list"></div></section>
           <section class="panel"><div class="panel-heading"><h2>Gender Analysis</h2><span>Participation and performance</span></div><div id="genderAnalysis" class="summary-list"></div></section>
           <section class="panel"><div class="panel-heading"><h2>Stream Analysis</h2><span>East and West comparison</span></div><div id="streamAnalysis" class="summary-list"></div></section>
+          <section class="panel"><div class="panel-heading"><h2>Performance Bands</h2><span>Learners grouped by current average</span></div><div id="performanceBandAnalysis" class="performance-band-list"></div></section>
         </div>
         <section class="panel">
           <div class="panel-heading">
@@ -445,6 +466,13 @@
             <span>Average, highest, lowest, and entries</span>
           </div>
           <div id="subjectBars" class="bar-list"></div>
+        </section>
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Class Subject Analysis</h2>
+            <span>Subject averages, pass rates, and missing marks for the selected class and stream</span>
+          </div>
+          <div id="classSubjectBars" class="bar-list"></div>
         </section>
         <section class="panel analytics-drill-panel">
           <div class="panel-heading">

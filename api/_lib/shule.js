@@ -90,6 +90,12 @@ function seedData() {
       name: "MAKINDYE JUNIOR ACADEMY",
       shortName: "MJA",
       motto: "HEAD - HEART - HAND",
+      tenantCode: "mja",
+      portalUrl: "https://shule-beta.vercel.app",
+      verificationPrefix: "MJA",
+      primaryColor: "#540f35",
+      secondaryColor: "#7a164b",
+      accentColor: "#fcb900",
       academicYear: "2026",
       term: "Term II",
       exam: "End of Term",
@@ -362,8 +368,7 @@ function calculateResults(db) {
     const classInfo = db.classes.find((item) => item.id === student.classId) || {};
     const studentMarks = marksByStudent.get(student.id) || new Map();
     const subjects = db.subjects.map((subject) => {
-      const mark = studentMarks.get(`${subject.id}:${db.school.academicYear}:${db.school.term}:${db.school.exam}`) ||
-        [...studentMarks.values()].find((item) => item.subjectId === subject.id);
+      const mark = studentMarks.get(`${subject.id}:${db.school.academicYear}:${db.school.term}:${db.school.exam}`);
       const status = mark?.status || "Missing";
       const score = status === "Captured" ? Number(mark.score) : null;
       const grade = gradeFor(score, db.gradingScale);
@@ -404,23 +409,16 @@ function calculateResults(db) {
       failedSubjects,
       missingSubjects: missing.length,
       promotion,
-      verificationCode: `MJA-${db.school.academicYear}-${String(student.admissionNo).replaceAll("/", "").replaceAll("-", "")}`
+      verificationCode: `${verificationPrefix(db.school)}-${db.school.academicYear}-${String(student.admissionNo).replaceAll("/", "").replaceAll("-", "")}`
     };
   });
 
   const ranked = assignSubjectRanks(assignRanks(students));
-  const subjectStats = db.subjects.map((subject) => {
-    const captured = db.marks.filter((mark) => mark.subjectId === subject.id && mark.status === "Captured");
-    const scores = captured.map((mark) => Number(mark.score));
-    return {
-      subjectId: subject.id,
-      subjectName: subject.name,
-      entries: scores.length,
-      average: round(scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : 0),
-      highest: scores.length ? Math.max(...scores) : 0,
-      lowest: scores.length ? Math.min(...scores) : 0
-    };
-  });
+  const subjectStats = subjectPerformance(db, activeStudents);
+  const classSubjectStats = classSubjectPerformance(db, activeStudents);
+  const performanceBands = learnerPerformanceBands(ranked);
+  const studentTrends = buildStudentTrends(db);
+  for (const student of ranked) student.trend = studentTrends[student.id] || [];
 
   const monitoring = uploadMonitoring(db);
   const classAverage = ranked.length ? ranked.reduce((sum, student) => sum + student.average, 0) / ranked.length : 0;
@@ -439,6 +437,8 @@ function calculateResults(db) {
     monitoring,
     classAverage: round(classAverage),
     subjectStats,
+    classSubjectStats,
+    performanceBands,
     students: ranked,
     deadlines: enrichDeadlines(db),
     uploadErrors: db.uploadErrors,
@@ -459,6 +459,10 @@ function executiveAnalytics(db, students, monitoring) {
     average: averages(rows),
     promoted: rows.filter((row) => row.promotion === "PROMOTED").length
   }));
+  const subjectStats = subjectPerformance(db, db.students.filter((student) => student.status === "Active"))
+    .filter((subject) => subject.entries > 0)
+    .sort((a, b) => b.average - a.average || a.subjectName.localeCompare(b.subjectName));
+  const bands = learnerPerformanceBands(students);
   return {
     totalLearners: db.students.length,
     activeLearners: students.length,
@@ -466,6 +470,10 @@ function executiveAnalytics(db, students, monitoring) {
     promotionRate: students.length ? Math.round((students.filter((student) => student.promotion === "PROMOTED").length / students.length) * 100) : 0,
     uploadCompletion: monitoring.completionRate,
     subjectsSubmitted: db.subjects.filter((subject) => db.marks.some((mark) => mark.subjectId === subject.id && mark.status === "Captured")).length,
+    topSubject: subjectStats[0] || null,
+    lowestSubject: subjectStats[subjectStats.length - 1] || null,
+    atRiskLearners: bands.find((band) => band.id === "at-risk")?.learners || 0,
+    performanceBands: bands,
     classComparison: summarized((student) => student.className),
     genderAnalysis: summarized((student) => student.gender || "Not recorded"),
     streamAnalysis: summarized((student) => student.stream || "Not recorded")
@@ -500,7 +508,12 @@ function promotionDecision(summary, rules) {
 }
 
 function promotionPreview(db, rankedStudents) {
-  return rankedStudents.map((student) => ({
+  const processedStudentIds = new Set((db.promotionHistory || [])
+    .filter((history) => history.academicYear === db.school.academicYear)
+    .flatMap((history) => history.rows || [])
+    .filter((row) => row.decision !== "MANUAL REVIEW")
+    .map((row) => row.studentId));
+  return rankedStudents.filter((student) => !processedStudentIds.has(student.id)).map((student) => ({
     studentId: student.id,
     admissionNo: student.admissionNo,
     name: student.name,
@@ -524,42 +537,68 @@ function targetClassId(student, classes) {
 }
 
 function approvePromotion(db, body = {}) {
+  db.movements = Array.isArray(db.movements) ? db.movements : [];
+  db.promotionHistory = Array.isArray(db.promotionHistory) ? db.promotionHistory : [];
+  db.audit = Array.isArray(db.audit) ? db.audit : [];
   const results = calculateResults(db);
+  const overrides = new Map((body.overrides || []).map((item) => [item.studentId, item]));
   const approved = [];
+  const unresolved = [];
   for (const row of results.promotionPreview) {
     const student = db.students.find((item) => item.id === row.studentId);
     if (!student) continue;
+    const override = overrides.get(row.studentId) || {};
+    const decision = ["PROMOTED", "REPEAT", "MANUAL REVIEW"].includes(override.decision)
+      ? override.decision
+      : row.decision;
+    if (decision === "MANUAL REVIEW") {
+      unresolved.push({ studentId: row.studentId, admissionNo: row.admissionNo, name: row.name });
+      continue;
+    }
     const before = student.classId;
     const fromClass = db.classes.find((item) => item.id === before);
-    if (row.decision === "PROMOTED" && row.targetClassId === "graduated") {
+    const targetClassIdValue = decision === "PROMOTED"
+      ? override.targetClassId || row.targetClassId
+      : before;
+    if (decision === "PROMOTED" && targetClassIdValue === "graduated") {
       student.status = "Graduated";
-    } else if (row.decision === "PROMOTED") {
-      student.classId = row.targetClassId;
-      const target = db.classes.find((item) => item.id === row.targetClassId);
-      if (target) {
-        student.classLevel = target.level;
-        student.stream = target.stream;
+    } else if (decision === "PROMOTED") {
+      const target = db.classes.find((item) => item.id === targetClassIdValue);
+      if (!target) {
+        const error = new Error(`Invalid promotion target for ${student.name}`);
+        error.statusCode = 422;
+        throw error;
       }
+      student.classId = target.id;
+      student.classLevel = target.level;
+      student.stream = target.stream;
     }
-    if (row.decision === "PROMOTED") {
-      const target = db.classes.find((item) => item.id === row.targetClassId);
+    if (decision === "PROMOTED" || decision === "REPEAT") {
+      const target = db.classes.find((item) => item.id === targetClassIdValue);
       db.movements.unshift({
         id: `movement-${Date.now()}-${student.id}`,
         studentId: student.id,
         admissionNo: student.admissionNo,
-        movementType: row.targetClassId === "graduated" ? "Graduation" : "Promotion",
+        movementType: decision === "REPEAT" ? "Repeat" : targetClassIdValue === "graduated" ? "Graduation" : "Promotion",
         movementDate: new Date().toISOString().slice(0, 10),
         fromClassId: before,
         fromClass: fromClass?.level || student.classLevel,
         fromStream: fromClass?.stream || student.stream,
         toClassId: target?.id || "",
-        toClass: target?.level || "Graduated",
-        toStream: target?.stream || "",
+        toClass: decision === "REPEAT" ? fromClass?.level || student.classLevel : target?.level || "Graduated",
+        toStream: decision === "REPEAT" ? fromClass?.stream || student.stream : target?.stream || "",
         approvedBy: body.approvedBy || "Head Teacher",
-        remarks: `Approved for ${db.promotionRules.nextAcademicYear}`
+        remarks: override.notes || `${decision === "REPEAT" ? "Approved to repeat" : "Approved for"} ${db.promotionRules.nextAcademicYear}`
       });
     }
-    approved.push({ studentId: student.id, admissionNo: student.admissionNo, before, after: student.classId, decision: row.decision });
+    approved.push({
+      studentId: student.id,
+      admissionNo: student.admissionNo,
+      before,
+      after: student.classId,
+      decision,
+      notes: override.notes || ""
+    });
   }
   const history = {
     id: `promotion-${Date.now()}`,
@@ -567,12 +606,128 @@ function approvePromotion(db, body = {}) {
     approvedAt: new Date().toISOString(),
     academicYear: db.school.academicYear,
     nextAcademicYear: db.promotionRules.nextAcademicYear,
-    rows: approved
+    rows: approved,
+    unresolved
   };
-  db.promotionRules.status = "Approved";
+  db.promotionRules.status = unresolved.length ? "Partially Approved" : "Approved";
   db.promotionHistory.push(history);
-  db.audit.push(audit(history.approvedBy, "Approved promotion", "-", `${approved.length} learners processed`));
+  db.audit.push(audit(history.approvedBy, "Approved promotion", "-", `${approved.length} learners processed; ${unresolved.length} pending review`));
   return history;
+}
+
+function verificationPrefix(school = {}) {
+  return String(school.verificationPrefix || school.shortName || "SHULE")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 12) || "SHULE";
+}
+
+function currentContextMarks(db) {
+  return db.marks.filter((mark) =>
+    mark.academicYear === db.school.academicYear &&
+    mark.term === db.school.term &&
+    mark.examType === db.school.exam
+  );
+}
+
+function passMark(db) {
+  const passing = db.gradingScale
+    .filter((row) => String(row.grade).toUpperCase() !== "F9" && Number(row.aggregate) < 9)
+    .map((row) => Number(row.min))
+    .filter(Number.isFinite);
+  return passing.length ? Math.min(...passing) : 40;
+}
+
+function performanceSummary(subject, marks, expectedLearners, minimumPassMark) {
+  const captured = marks.filter((mark) => mark.subjectId === subject.id && mark.status === "Captured");
+  const scores = captured.map((mark) => Number(mark.score)).filter(Number.isFinite);
+  const passed = scores.filter((score) => score >= minimumPassMark).length;
+  return {
+    subjectId: subject.id,
+    subjectName: subject.name,
+    subjectCode: subject.code,
+    entries: scores.length,
+    average: round(scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : 0),
+    highest: scores.length ? Math.max(...scores) : 0,
+    lowest: scores.length ? Math.min(...scores) : 0,
+    passRate: scores.length ? Math.round((passed / scores.length) * 100) : 0,
+    failed: scores.length - passed,
+    missing: Math.max(0, expectedLearners - new Set(captured.map((mark) => mark.studentId)).size)
+  };
+}
+
+function subjectPerformance(db, activeStudents) {
+  const marks = currentContextMarks(db);
+  const minimumPassMark = passMark(db);
+  return db.subjects.map((subject) => performanceSummary(subject, marks, activeStudents.length, minimumPassMark));
+}
+
+function classSubjectPerformance(db, activeStudents) {
+  const marks = currentContextMarks(db);
+  const minimumPassMark = passMark(db);
+  return db.classes.map((classInfo) => {
+    const learners = activeStudents.filter((student) => student.classId === classInfo.id);
+    const studentIds = new Set(learners.map((student) => student.id));
+    const classMarks = marks.filter((mark) => studentIds.has(mark.studentId));
+    return {
+      classId: classInfo.id,
+      className: classInfo.name,
+      level: classInfo.level,
+      stream: classInfo.stream,
+      learners: learners.length,
+      subjects: db.subjects.map((subject) => performanceSummary(subject, classMarks, learners.length, minimumPassMark))
+    };
+  });
+}
+
+function learnerPerformanceBands(students) {
+  const bands = [
+    { id: "excellent", name: "Excellent", min: 80, max: 100 },
+    { id: "on-track", name: "On Track", min: 60, max: 79.999 },
+    { id: "support", name: "Needs Support", min: 40, max: 59.999 },
+    { id: "at-risk", name: "At Risk", min: 0, max: 39.999 }
+  ];
+  return bands.map((band) => ({
+    ...band,
+    learners: students.filter((student) => student.average >= band.min && student.average <= band.max).length
+  }));
+}
+
+function buildStudentTrends(db) {
+  const termOrder = new Map(db.terms.map((item, index) => [item.name, index]));
+  const examOrder = new Map(db.examTypes.map((item, index) => [item.name, index]));
+  const byStudent = new Map();
+  for (const mark of db.marks.filter((item) => item.status === "Captured")) {
+    if (!byStudent.has(mark.studentId)) byStudent.set(mark.studentId, new Map());
+    const contexts = byStudent.get(mark.studentId);
+    const key = `${mark.academicYear}|${mark.term}|${mark.examType}`;
+    if (!contexts.has(key)) {
+      contexts.set(key, {
+        academicYear: mark.academicYear,
+        term: mark.term,
+        examType: mark.examType,
+        scores: []
+      });
+    }
+    contexts.get(key).scores.push(Number(mark.score));
+  }
+  return Object.fromEntries([...byStudent].map(([studentId, contexts]) => {
+    const rows = [...contexts.values()]
+      .map((item) => ({
+        academicYear: item.academicYear,
+        term: item.term,
+        examType: item.examType,
+        label: `${item.term} ${item.examType}`,
+        average: round(item.scores.reduce((sum, score) => sum + score, 0) / item.scores.length),
+        subjects: item.scores.length
+      }))
+      .sort((a, b) =>
+        Number(a.academicYear || 0) - Number(b.academicYear || 0) ||
+        (termOrder.get(a.term) ?? 999) - (termOrder.get(b.term) ?? 999) ||
+        (examOrder.get(a.examType) ?? 999) - (examOrder.get(b.examType) ?? 999)
+      );
+    return [studentId, rows];
+  }));
 }
 
 function gradeFor(score, scale) {
@@ -1291,6 +1446,7 @@ function sanitizeStorageError(message) {
 
 function normalizeDb(db) {
   const defaults = seedData();
+  db.school = { ...defaults.school, ...(db.school || {}) };
   db.comments = { ...defaults.comments, ...(db.comments || {}) };
   db.activities = Array.isArray(db.activities) ? db.activities : defaults.activities;
   db.movements = Array.isArray(db.movements) ? db.movements : [];

@@ -59,3 +59,11 @@ supabase/repair-schema.sql
 This is safe to rerun. It adds missing Shule tables, columns, indexes, and RLS settings without deleting data.
 
 The repair script also adds demo public read policies for the Shule table equivalents of schools, academic years, terms, classes, streams, students, subjects, teachers, grading scales, exam/assessment types, and marks.
+
+Those demo policies are not suitable for a live school. Before UAT with real learner data, run:
+
+```text
+supabase/production-hardening.sql
+```
+
+For a new school installation, follow `SCHOOL_PROVISIONING.md`.

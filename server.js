@@ -183,6 +183,21 @@ async function handleApi(req, res, pathname, searchParams) {
 
   const db = await loadDb();
 
+  if (req.method === "GET" && pathname === "/api/branding") {
+    const school = db.school || {};
+    return sendJson(res, 200, {
+      name: school.name,
+      shortName: school.shortName,
+      motto: school.motto,
+      logoUrl: school.logoUrl,
+      tenantCode: school.tenantCode,
+      portalUrl: school.portalUrl,
+      verificationPrefix: school.verificationPrefix,
+      primaryColor: school.primaryColor,
+      secondaryColor: school.secondaryColor,
+      accentColor: school.accentColor
+    });
+  }
   if (req.method === "GET" && pathname === "/api/verify") return sendJson(res, 200, verifiedReport(db, searchParams.get("code")));
   if (req.method === "GET" && pathname === "/api/qr") {
     const QRCode = require("qrcode");
