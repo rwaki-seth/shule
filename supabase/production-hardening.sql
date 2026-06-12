@@ -58,4 +58,3 @@ create index if not exists shule_marks_student_idx
 
 create index if not exists shule_teacher_assignments_scope_idx
   on public.shule_teacher_assignments (teacher_id, class_id, subject_id);
-

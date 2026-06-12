@@ -51,4 +51,3 @@ Staff sign in through the portal. Parents and visitors use the same address only
 - Test student import, marks entry, reports, and promotion on a preview deployment
 - Enable Supabase backups and document a restore procedure
 - Add a custom domain and school support contact
-
