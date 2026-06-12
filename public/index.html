@@ -209,6 +209,53 @@
       </section>
 
       <section id="students" class="view">
+        <section class="panel student-directory-panel">
+          <div class="panel-heading">
+            <div>
+              <h2>Find a Learner</h2>
+              <span>Search the register, filter by class or stream, then open the learner profile</span>
+            </div>
+            <span id="studentCountLabel"></span>
+          </div>
+          <div class="register-toolbar">
+            <label class="student-search-field">Search learners
+              <input id="studentSearchInput" type="search" placeholder="Name, admission number, parent or contact">
+            </label>
+            <label>Class <select id="studentFilterClassSelect"></select></label>
+            <label>Stream <select id="studentFilterStreamSelect"></select></label>
+            <label>Status <select id="studentFilterStatusSelect"></select></label>
+            <label class="mobile-student-sort">Sort By
+              <select id="studentSortSelect">
+                <option value="class">Class</option>
+                <option value="name">Name</option>
+                <option value="admissionNo">Admission Number</option>
+                <option value="stream">Stream</option>
+                <option value="status">Status</option>
+              </select>
+            </label>
+            <button id="downloadStudentListBtn" type="button" class="secondary">Download Visible List</button>
+          </div>
+          <div class="table-wrap">
+            <table id="studentRegisterTable">
+              <thead>
+                <tr>
+                  <th><button type="button" class="sort-heading" data-student-sort="studentId">Student ID</button></th>
+                  <th><button type="button" class="sort-heading" data-student-sort="name">Name</button></th>
+                  <th><button type="button" class="sort-heading" data-student-sort="gender">Gender</button></th>
+                  <th><button type="button" class="sort-heading" data-student-sort="class">Class</button></th>
+                  <th><button type="button" class="sort-heading" data-student-sort="stream">Stream</button></th>
+                  <th><button type="button" class="sort-heading" data-student-sort="house">House</button></th>
+                  <th><button type="button" class="sort-heading" data-student-sort="status">Status</button></th>
+                  <th><button type="button" class="sort-heading" data-student-sort="guardian">Parent</button></th>
+                  <th><button type="button" class="sort-heading" data-student-sort="contact">Contact</button></th>
+                  <th>Profile</th>
+                </tr>
+              </thead>
+              <tbody id="studentRegisterBody"></tbody>
+            </table>
+          </div>
+        </section>
+
         <section class="panel student-import-panel" id="studentImportPanel">
           <div class="panel-heading">
             <div>
@@ -268,29 +315,6 @@
           </form>
         </section>
 
-        <section class="panel">
-          <div class="panel-heading">
-            <h2>Register Overview</h2>
-            <span id="studentCountLabel"></span>
-          </div>
-          <div class="register-toolbar">
-            <label class="student-search-field">Search
-              <input id="studentSearchInput" type="search" placeholder="Name, admission no. or contact">
-            </label>
-            <label>Class <select id="studentFilterClassSelect"></select></label>
-            <label>Stream <select id="studentFilterStreamSelect"></select></label>
-            <label>Status <select id="studentFilterStatusSelect"></select></label>
-            <button id="downloadStudentListBtn" type="button" class="secondary">Download Visible List</button>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr><th>Student ID</th><th>Name</th><th>Gender</th><th>Class</th><th>Stream</th><th>House</th><th>Status</th><th>Parent</th><th>Contact</th><th>Profile</th></tr>
-              </thead>
-              <tbody id="studentRegisterBody"></tbody>
-            </table>
-          </div>
-        </section>
       </section>
 
       <section id="studentProfile" class="view">
@@ -417,6 +441,20 @@
       </section>
 
       <section id="promotion" class="view">
+        <section class="promotion-guide">
+          <div>
+            <strong>Automatic Promote</strong>
+            <span>All required marks are present and the learner meets the promotion rule.</span>
+          </div>
+          <div>
+            <strong>Automatic Repeat</strong>
+            <span>All required marks are present, but the learner does not meet the rule.</span>
+          </div>
+          <div class="manual">
+            <strong>Manual Review</strong>
+            <span>One or more required results are missing. The system will not guess: an authorized user must choose Promote or Repeat.</span>
+          </div>
+        </section>
         <div class="metric-grid">
           <article class="metric"><span>Promotion Rule</span><strong id="promotionRuleMetric">-</strong></article>
           <button type="button" class="metric promotion-filter status-complete" data-promotion-filter="PROMOTED"><span>Promote</span><strong id="promotionPromoteMetric">0</strong></button>
@@ -430,12 +468,13 @@
           </div>
           <div class="actions">
             <button id="approvePromotionBtn">Approve Resolved Decisions</button>
+            <button id="reviewManualPromotionsBtn" type="button" class="secondary">Review Manual Cases</button>
             <button id="showAllPromotionsBtn" type="button" class="secondary">Show All</button>
             <span id="promotionActionStatus" class="action-status"></span>
           </div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Adm No.</th><th>Student</th><th>Current</th><th>Average</th><th>Failed</th><th>Missing</th><th>Decision</th><th>Target</th></tr></thead>
+              <thead><tr><th>Adm No.</th><th>Student</th><th>Current</th><th>Average</th><th>Failed</th><th>Review Reason</th><th>Final Decision</th><th>Target</th></tr></thead>
               <tbody id="promotionBody"></tbody>
             </table>
           </div>

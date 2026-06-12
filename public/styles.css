@@ -715,6 +715,58 @@ textarea {
   flex-basis: 300px;
 }
 
+.student-directory-panel {
+  border-top: 4px solid var(--gold);
+}
+
+.student-search-field input {
+  min-height: 46px;
+  background: #fffdf5;
+}
+
+.mobile-student-sort {
+  display: none;
+}
+
+.sort-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  box-shadow: none;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.sort-heading::after {
+  content: "\2195";
+  color: #9ca9ba;
+  font-size: 12px;
+}
+
+.sort-heading.active[data-direction="asc"]::after {
+  content: "\25B2";
+  color: var(--primary);
+}
+
+.sort-heading.active[data-direction="desc"]::after {
+  content: "\25BC";
+  color: var(--primary);
+}
+
+.sort-heading:hover,
+.sort-heading:focus-visible,
+.sort-heading.active {
+  outline: 0;
+  background: transparent;
+  color: var(--primary);
+  box-shadow: none;
+}
+
 .compact-form button,
 .register-toolbar button {
   flex: 0 0 auto;
@@ -1278,6 +1330,58 @@ button.metric.promotion-filter.active {
 button.metric.promotion-filter span,
 button.metric.promotion-filter strong {
   display: block;
+}
+
+.promotion-guide {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.promotion-guide > div {
+  min-height: 88px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-left: 4px solid #1fa74f;
+  border-radius: 8px;
+  background: var(--white);
+}
+
+.promotion-guide > div:nth-child(2) {
+  border-left-color: #dc2626;
+}
+
+.promotion-guide > div.manual {
+  border-left-color: #f59e0b;
+  background: #fff9e8;
+}
+
+.promotion-guide strong,
+.promotion-guide span,
+.review-reason {
+  display: block;
+}
+
+.promotion-guide span {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.review-reason {
+  margin-bottom: 4px;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.review-reason + span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.promotion-review-row td {
+  background: #fffaf0;
 }
 
 .promotion-decision,
@@ -2545,6 +2649,10 @@ button.metric.promotion-filter strong {
   .verified-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .promotion-guide {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 639px) {
@@ -2669,6 +2777,10 @@ button.metric.promotion-filter strong {
   .import-status-row .actions {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .mobile-student-sort {
+    display: grid;
   }
 
   .compact-form button,

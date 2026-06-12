@@ -16,6 +16,8 @@ let selectedAnalyticsStream = "All";
 let firstAdminSetupAvailable = false;
 let publicBranding = null;
 let promotionFilter = "ALL";
+let studentSortKey = "class";
+let studentSortDirection = "asc";
 const promotionOverrides = new Map();
 
 const STATUS_OPTIONS = ["Active", "Graduated", "Transferred", "Suspended", "Expelled", "Dropped Out", "Deceased", "Inactive"];
@@ -84,6 +86,8 @@ const els = {
   studentFilterStreamSelect: document.getElementById("studentFilterStreamSelect"),
   studentFilterStatusSelect: document.getElementById("studentFilterStatusSelect"),
   studentSearchInput: document.getElementById("studentSearchInput"),
+  studentRegisterTable: document.getElementById("studentRegisterTable"),
+  studentSortSelect: document.getElementById("studentSortSelect"),
   downloadStudentListBtn: document.getElementById("downloadStudentListBtn"),
   studentProfileContent: document.getElementById("studentProfileContent"),
   backToStudentsBtn: document.getElementById("backToStudentsBtn"),
@@ -143,6 +147,7 @@ const els = {
   promotionRepeatMetric: document.getElementById("promotionRepeatMetric"),
   promotionBody: document.getElementById("promotionBody"),
   approvePromotionBtn: document.getElementById("approvePromotionBtn"),
+  reviewManualPromotionsBtn: document.getElementById("reviewManualPromotionsBtn"),
   showAllPromotionsBtn: document.getElementById("showAllPromotionsBtn"),
   promotionActionStatus: document.getElementById("promotionActionStatus"),
   reportModeLabel: document.getElementById("reportModeLabel"),
@@ -599,6 +604,16 @@ function renderStudents() {
   const students = visibleRegisterStudents();
   const active = students.filter((student) => student.status === "Active").length;
   els.studentCountLabel.textContent = `${students.length} shown | ${active} active`;
+  document.querySelectorAll("[data-student-sort]").forEach((button) => {
+    const activeSort = button.dataset.studentSort === studentSortKey;
+    button.classList.toggle("active", activeSort);
+    button.dataset.direction = activeSort ? studentSortDirection : "";
+    button.closest("th")?.setAttribute(
+      "aria-sort",
+      activeSort ? (studentSortDirection === "asc" ? "ascending" : "descending") : "none"
+    );
+  });
+  if (els.studentSortSelect) els.studentSortSelect.value = studentSortKey;
   els.studentRegisterBody.innerHTML = students.map((student) => {
     const classInfo = classById(student.classId) || {};
     return `
@@ -643,10 +658,31 @@ function visibleRegisterStudents() {
         (!query || searchable.includes(query));
     })
     .sort((a, b) => {
-      const aClass = classById(a.classId)?.name || "";
-      const bClass = classById(b.classId)?.name || "";
-      return aClass.localeCompare(bClass) || a.name.localeCompare(b.name);
+      const direction = studentSortDirection === "desc" ? -1 : 1;
+      const result = studentSortValue(a, studentSortKey).localeCompare(
+        studentSortValue(b, studentSortKey),
+        undefined,
+        { numeric: true, sensitivity: "base" }
+      );
+      return (result || String(a.name || "").localeCompare(String(b.name || ""), undefined, { sensitivity: "base" })) * direction;
     });
+}
+
+function studentSortValue(student, key) {
+  const classInfo = classById(student.classId) || {};
+  const values = {
+    studentId: student.studentId || student.admissionNo,
+    admissionNo: student.admissionNo,
+    name: student.name,
+    gender: student.gender,
+    class: classInfo.level || student.classLevel,
+    stream: classInfo.stream || student.stream,
+    house: student.house,
+    status: student.status,
+    guardian: student.guardian,
+    contact: student.contact
+  };
+  return String(values[key] || "");
 }
 
 function downloadVisibleStudentList() {
@@ -897,23 +933,22 @@ function renderPromotion() {
   const preview = results.promotionPreview || [];
   const rule = db.promotionRules;
   els.promotionRuleMetric.textContent = `${rule.minAverage}% / ${rule.maxFailedSubjects} fails`;
-  els.promotionPromoteMetric.textContent = preview.filter((item) => item.decision === "PROMOTED").length;
-  els.promotionReviewMetric.textContent = preview.filter((item) => item.decision === "MANUAL REVIEW").length;
-  els.promotionRepeatMetric.textContent = preview.filter((item) => item.decision === "REPEAT").length;
+  els.promotionPromoteMetric.textContent = preview.filter((item) => promotionDecisionFor(item) === "PROMOTED").length;
+  els.promotionReviewMetric.textContent = preview.filter((item) => promotionDecisionFor(item) === "MANUAL REVIEW").length;
+  els.promotionRepeatMetric.textContent = preview.filter((item) => promotionDecisionFor(item) === "REPEAT").length;
   document.querySelectorAll(".promotion-filter").forEach((button) => {
     button.classList.toggle("active", button.dataset.promotionFilter === promotionFilter);
   });
   const filtered = preview.filter((item) => {
-    const decision = promotionOverrides.get(item.studentId)?.decision || item.decision;
+    const decision = promotionDecisionFor(item);
     return promotionFilter === "ALL" || decision === promotionFilter;
   });
-  const unresolved = preview.filter((item) =>
-    (promotionOverrides.get(item.studentId)?.decision || item.decision) === "MANUAL REVIEW"
-  ).length;
-  els.promotionActionStatus.textContent = `${filtered.length} shown | ${unresolved} still require a decision`;
+  const unresolved = preview.filter((item) => promotionDecisionFor(item) === "MANUAL REVIEW").length;
+  const resolved = preview.length - unresolved;
+  els.promotionActionStatus.textContent = `${unresolved} manual case(s) need Promote or Repeat | ${resolved} decision(s) ready`;
   els.promotionBody.innerHTML = filtered.map((item) => {
     const override = promotionOverrides.get(item.studentId) || {};
-    const decision = override.decision || item.decision;
+    const decision = promotionDecisionFor(item);
     const targetClassId = decision === "REPEAT"
       ? item.currentClassId
       : override.targetClassId || item.targetClassId;
@@ -922,26 +957,51 @@ function renderPromotion() {
       `<option value="graduated" ${targetClassId === "graduated" ? "selected" : ""}>Graduate</option>`
     ].join("");
     return `
-    <tr>
+    <tr class="${decision === "MANUAL REVIEW" ? "promotion-review-row" : "promotion-resolved-row"}">
       <td>${escapeHtml(item.admissionNo)}</td>
       <td>${escapeHtml(item.name)}</td>
       <td>${escapeHtml(item.currentClass)}</td>
       <td>${item.average}</td>
       <td>${item.failedSubjects}</td>
-      <td>${item.missingSubjects}</td>
+      <td>
+        <strong class="review-reason">${escapeHtml(promotionReviewReason(item))}</strong>
+        <span>${item.missingSubjects || 0} missing result(s)</span>
+      </td>
       <td>
         <select class="promotion-decision" data-student-id="${escapeHtml(item.studentId)}">
-          <option value="MANUAL REVIEW" ${decision === "MANUAL REVIEW" ? "selected" : ""}>Manual Review</option>
+          <option value="MANUAL REVIEW" ${decision === "MANUAL REVIEW" ? "selected" : ""}>Decision needed</option>
           <option value="PROMOTED" ${decision === "PROMOTED" ? "selected" : ""}>Promote</option>
           <option value="REPEAT" ${decision === "REPEAT" ? "selected" : ""}>Repeat</option>
         </select>
-        <input class="promotion-note" data-student-id="${escapeHtml(item.studentId)}" value="${escapeHtml(override.notes || "")}" placeholder="Review note">
+        <input class="promotion-note" data-student-id="${escapeHtml(item.studentId)}" value="${escapeHtml(override.notes || "")}" placeholder="Reason for this decision">
       </td>
       <td><select class="promotion-target" data-student-id="${escapeHtml(item.studentId)}" ${decision !== "PROMOTED" ? "disabled" : ""}>${targetOptions}</select></td>
     </tr>
   `;
   }).join("") || `<tr><td colspan="8">No learners match this promotion filter.</td></tr>`;
   decorateMobileTables();
+}
+
+function promotionDecisionFor(item) {
+  return promotionOverrides.get(item.studentId)?.decision || item.decision;
+}
+
+function promotionReviewReason(item) {
+  if (item.missingSubjects > 0) {
+    const student = results.students.find((candidate) => candidate.id === item.studentId);
+    const missing = (student?.subjects || [])
+      .filter((subject) => subject.status !== "Captured")
+      .map((subject) => subject.subjectName || subject.name)
+      .filter(Boolean);
+    if (missing.length) {
+      const visible = missing.slice(0, 3).join(", ");
+      return `Missing: ${visible}${missing.length > 3 ? ` +${missing.length - 3} more` : ""}`;
+    }
+    return `${item.missingSubjects} required result(s) are missing`;
+  }
+  return item.decision === "PROMOTED"
+    ? "Complete results; promotion rule met"
+    : "Complete results; promotion rule not met";
 }
 
 function renderAnalytics() {
@@ -2069,6 +2129,23 @@ els.studentFilterClassSelect.addEventListener("change", renderStudents);
 els.studentFilterStreamSelect.addEventListener("change", renderStudents);
 els.studentFilterStatusSelect.addEventListener("change", renderStudents);
 els.studentSearchInput.addEventListener("input", renderStudents);
+els.studentRegisterTable?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-student-sort]");
+  if (!button) return;
+  const nextKey = button.dataset.studentSort;
+  if (studentSortKey === nextKey) {
+    studentSortDirection = studentSortDirection === "asc" ? "desc" : "asc";
+  } else {
+    studentSortKey = nextKey;
+    studentSortDirection = "asc";
+  }
+  renderStudents();
+});
+els.studentSortSelect?.addEventListener("change", () => {
+  studentSortKey = els.studentSortSelect.value;
+  studentSortDirection = "asc";
+  renderStudents();
+});
 els.downloadStudentListBtn.addEventListener("click", downloadVisibleStudentList);
 els.studentRegisterBody.addEventListener("click", (event) => {
   const row = event.target.closest("[data-student-id]");
@@ -2112,6 +2189,11 @@ els.showAllPromotionsBtn.addEventListener("click", () => {
   promotionFilter = "ALL";
   renderPromotion();
 });
+els.reviewManualPromotionsBtn?.addEventListener("click", () => {
+  promotionFilter = "MANUAL REVIEW";
+  renderPromotion();
+  document.querySelector("#promotion .panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+});
 document.querySelectorAll(".promotion-filter").forEach((button) => {
   button.addEventListener("click", () => {
     promotionFilter = button.dataset.promotionFilter;
@@ -2129,6 +2211,13 @@ els.promotionBody.addEventListener("change", (event) => {
   if (control.classList.contains("promotion-note")) current.notes = control.value;
   promotionOverrides.set(studentId, current);
   if (control.classList.contains("promotion-decision")) renderPromotion();
+});
+els.promotionBody.addEventListener("input", (event) => {
+  const note = event.target.closest(".promotion-note");
+  if (!note) return;
+  const current = promotionOverrides.get(note.dataset.studentId) || {};
+  current.notes = note.value;
+  promotionOverrides.set(note.dataset.studentId, current);
 });
 els.classComparisonBars.addEventListener("click", (event) => {
   const row = event.target.closest("[data-analytics-class]");
