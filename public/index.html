@@ -1,0 +1,687 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Makindye Junior Academy Results</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <section id="accessPortal" class="access-portal">
+      <div class="access-brand">
+        <div class="brand-mark" id="accessBrandMark">MJA</div>
+        <div><strong id="accessBrandName">Makindye Junior Academy</strong><span id="accessBrandSubtitle">Results and report verification</span></div>
+      </div>
+      <div class="access-grid">
+        <section class="access-verification">
+          <p class="eyebrow">Parents & Visitors</p>
+          <h1>Verify a learner report</h1>
+          <p>Use the verification code printed on the official report. No school administration data is exposed here.</p>
+          <form id="publicVerificationForm" class="access-form">
+            <label>Verification Code <input id="publicVerificationCode" required placeholder="MJA-2026-..."></label>
+            <button type="submit">Verify Report</button>
+          </form>
+          <div id="publicVerificationContent"></div>
+        </section>
+        <section class="staff-login-panel">
+          <p class="eyebrow">Authorized Staff</p>
+          <h2>Staff sign in</h2>
+          <form id="loginForm" class="access-form">
+            <label>Email <input name="email" type="email" autocomplete="username" required></label>
+            <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
+            <button type="submit">Sign In</button>
+          </form>
+          <button id="showBootstrapBtn" type="button" class="text-button" aria-expanded="false" hidden>First Super Admin setup</button>
+          <form id="bootstrapForm" class="access-form bootstrap-form" hidden>
+            <label>Full Name <input name="name" required></label>
+            <label>Email <input name="email" type="email" required></label>
+            <label>Password <input name="password" type="password" minlength="8" required></label>
+            <label>Setup Key <input name="setupKey" type="password" required></label>
+            <button type="submit">Create Super Admin</button>
+          </form>
+          <div id="loginMessage" class="login-message"></div>
+        </section>
+      </div>
+    </section>
+
+    <aside class="sidebar" id="staffSidebar" hidden>
+      <div class="brand">
+        <div class="brand-mark" id="sidebarBrandMark">MJA</div>
+        <div>
+          <strong id="sidebarBrandName">Makindye Junior Academy</strong>
+          <span id="sidebarBrandMotto">Head - Heart - Hand</span>
+        </div>
+      </div>
+      <nav>
+        <button class="nav-button active" data-view="dashboard">Dashboard</button>
+        <button class="nav-button" data-view="setup">Setup</button>
+        <button class="nav-button" data-view="students">Students</button>
+        <button class="nav-button" data-view="marks">Marks Upload</button>
+        <button class="nav-button" data-view="monitoring">Monitoring</button>
+        <button class="nav-button" data-view="promotion">Promotion</button>
+        <button class="nav-button" data-view="analytics">Analytics</button>
+        <button class="nav-button" data-view="reports">Reports</button>
+        <button class="nav-button" data-view="accessControl">Access Control</button>
+      </nav>
+    </aside>
+
+    <main class="app-shell" id="staffShell" hidden>
+      <header class="topbar">
+        <div class="mobile-school-brand">
+          <div class="mobile-brand-mark" id="mobileBrandMark">MJA</div>
+          <div>
+            <strong id="mobileBrandName">Makindye Junior Academy</strong>
+            <span id="mobileBrandMotto">Head - Heart - Hand</span>
+          </div>
+        </div>
+        <div class="page-heading">
+          <p class="eyebrow" id="schoolMeta">Loading...</p>
+          <h1 id="pageTitle">Dashboard</h1>
+        </div>
+        <div class="actions">
+          <button id="refreshBtn" class="secondary">Refresh</button>
+          <div class="user-menu"><span id="currentUserRole">Signed out</span><button id="logoutBtn" type="button">Sign Out</button></div>
+        </div>
+      </header>
+
+      <section id="dashboard" class="view active">
+        <section class="hero-band">
+          <div>
+            <p class="eyebrow">School Results & Marks Management</p>
+            <h2 id="heroSchool">Makindye Junior Academy</h2>
+            <p>Modern assessment capture, monitoring, analytics, promotions, and parent-ready reporting for Ugandan primary schools.</p>
+          </div>
+          <div class="seal">Verified<br>Reports</div>
+        </section>
+
+        <section class="connection-panel status-pending" id="connectionPanel">
+          <div class="connection-heading">
+            <strong>Supabase Connection</strong>
+            <span class="connection-badge" id="connectionStatusLabel">Checking</span>
+          </div>
+          <div class="connection-grid">
+            <div><span>Supabase URL detected</span><strong id="connectionUrlStatus">Checking</strong></div>
+            <div><span>Tables reachable</span><strong id="connectionTablesStatus">Checking</strong></div>
+            <div><span>Records loaded</span><strong id="connectionRecordCount">0</strong></div>
+            <div><span>Last successful fetch</span><strong id="connectionFetchTime">-</strong></div>
+          </div>
+          <div class="connection-error"><span>Last fetch error</span><strong id="connectionStatusDetail">None</strong></div>
+        </section>
+
+        <section class="dashboard-section">
+          <div class="section-heading"><div><p class="eyebrow">School Overview</p><h2>People and structure</h2></div></div>
+          <div class="metric-grid school-overview-grid">
+            <article class="metric"><span>Total Learners</span><strong id="dashTotalLearners">0</strong></article>
+            <article class="metric"><span>Active Learners</span><strong id="metricStudents">0</strong></article>
+            <article class="metric"><span>Boys</span><strong id="dashBoys">0</strong></article>
+            <article class="metric"><span>Girls</span><strong id="dashGirls">0</strong></article>
+            <article class="metric"><span>Teachers</span><strong id="dashTeachers">0</strong></article>
+            <article class="metric"><span>Classes</span><strong id="dashClasses">0</strong></article>
+            <article class="metric"><span>Streams</span><strong id="dashStreams">0</strong></article>
+            <article class="metric"><span>Subjects</span><strong id="metricSubjects">0</strong></article>
+          </div>
+        </section>
+
+        <section class="dashboard-section">
+          <div class="section-heading"><div><p class="eyebrow">Academic Overview</p><h2>Current assessment health</h2></div></div>
+          <div class="metric-grid">
+            <article class="metric"><span>Overall Average</span><strong id="metricAverage">0</strong></article>
+            <article class="metric status-complete"><span>Pass Rate</span><strong id="dashPassRate">0%</strong></article>
+            <article class="metric status-late"><span>Fail Rate</span><strong id="dashFailRate">0%</strong></article>
+            <article class="metric status-pending"><span>Promotion Rate</span><strong id="dashPromotionRate">0%</strong></article>
+            <article class="metric"><span>Upload Completion</span><strong id="metricCompletion">0%</strong></article>
+          </div>
+        </section>
+
+        <section class="dashboard-performance-grid">
+          <article class="insight-card"><span>Top Performing Class</span><strong id="dashTopClass">-</strong><small id="dashTopClassScore">No results yet</small></article>
+          <article class="insight-card"><span>Top Performing Stream</span><strong id="dashTopStream">-</strong><small id="dashTopStreamScore">No results yet</small></article>
+          <article class="insight-card"><span>Best Subject</span><strong id="dashBestSubject">-</strong><small id="dashBestSubjectScore">No results yet</small></article>
+          <article class="insight-card attention"><span>Lowest Subject</span><strong id="dashLowestSubject">-</strong><small id="dashLowestSubjectScore">No results yet</small></article>
+        </section>
+
+        <section class="dashboard-feed-grid">
+          <section class="panel">
+            <div class="panel-heading"><h2>Recent Uploads</h2><span>Latest marks submissions</span></div>
+            <div id="dashboardRecentUploads" class="activity-feed"></div>
+          </section>
+          <section class="panel">
+            <div class="panel-heading"><h2>Activity Feed</h2><span>Recent academic administration actions</span></div>
+            <div id="dashboardActivityFeed" class="activity-feed"></div>
+          </section>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Overall Ranking</h2>
+            <span>Class and stream positions calculated automatically</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Overall</th>
+                  <th>Learner</th>
+                  <th>Class</th>
+                  <th>Stream</th>
+                  <th>Total</th>
+                  <th>Average</th>
+                  <th>Agg.</th>
+                  <th>Promotion</th>
+                </tr>
+              </thead>
+              <tbody id="rankingBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section id="setup" class="view">
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Structured Setup</h2>
+            <span>School profile, academic setup, staff, assignments, grading, and roles</span>
+          </div>
+          <form id="schoolProfileForm" class="form-grid">
+            <label>School Name <input name="name" id="schoolNameInput"></label>
+            <label>Short Name <input name="shortName" id="schoolShortNameInput"></label>
+            <label>Motto <input name="motto" id="schoolMottoInput"></label>
+            <label>Phone <input name="phone" id="schoolPhoneInput"></label>
+            <label>Email <input name="email" id="schoolEmailInput"></label>
+            <label>Address <input name="address" id="schoolAddressInput"></label>
+            <label>Logo URL <input name="logoUrl" id="schoolLogoInput"></label>
+            <label>Watermark <input name="watermarkText" id="schoolWatermarkInput"></label>
+            <label>Subscription Plan <select name="subscriptionPlan" id="schoolSubscriptionPlanInput"><option>Starter</option><option>Professional</option><option>Enterprise</option></select></label>
+            <label>Subscription Status <select name="subscriptionStatus" id="schoolSubscriptionStatusInput"><option>Trial</option><option>Active</option><option>Suspended</option><option>Expired</option><option>Cancelled</option></select></label>
+            <label>Trial Ends <input name="trialEndsAt" id="schoolTrialEndsInput" type="date"></label>
+            <label>Subscription Expires <input name="subscriptionExpiresAt" id="schoolSubscriptionExpiresInput" type="date"></label>
+            <label>School / Tenant Code <input name="tenantCode" id="schoolTenantCodeInput" placeholder="mja"></label>
+            <label>Portal URL <input name="portalUrl" id="schoolPortalUrlInput" type="url" placeholder="https://results.school.ac.ug"></label>
+            <label>Verification Prefix <input name="verificationPrefix" id="schoolVerificationPrefixInput" maxlength="12" placeholder="MJA"></label>
+            <label>Primary Colour <input name="primaryColor" id="schoolPrimaryColorInput" type="color"></label>
+            <label>Secondary Colour <input name="secondaryColor" id="schoolSecondaryColorInput" type="color"></label>
+            <label>Accent Colour <input name="accentColor" id="schoolAccentColorInput" type="color"></label>
+            <button type="submit">Save School Profile</button>
+          </form>
+          <div class="deployment-readiness">
+            <div><span>Installation</span><strong>Isolated school deployment</strong></div>
+            <div><span>Data boundary</span><strong>Dedicated Supabase project</strong></div>
+            <div><span>Distribution</span><strong>School domain or Vercel URL</strong></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Report Settings</h2>
+            <span>Comments and next-term information used on official learner reports</span>
+          </div>
+          <form id="reportSettingsForm" class="form-grid">
+            <label>Next Term Opens <input name="openingDate" type="date"></label>
+            <label>Next Term Closes <input name="closingDate" type="date"></label>
+            <label>Fees / Account Note <textarea name="feesBalance"></textarea></label>
+            <label>Requirements <textarea name="requirements"></textarea></label>
+            <label>Special Notes <textarea name="specialNotes"></textarea></label>
+            <button type="submit">Save Report Settings</button>
+          </form>
+        </section>
+
+        <div class="setup-grid">
+          <section class="panel"><div class="panel-heading"><h2>Academic Years</h2><span id="academicYearCount"></span></div><div class="compact-list" id="academicYearList"></div></section>
+          <section class="panel"><div class="panel-heading"><h2>Terms</h2><span id="termCount"></span></div><div class="compact-list" id="termList"></div></section>
+          <section class="panel"><div class="panel-heading"><h2>Exam Types</h2><span id="examTypeCount"></span></div><div class="compact-list" id="examTypeList"></div></section>
+          <section class="panel"><div class="panel-heading"><h2>Classes</h2><span id="classCount"></span></div><div class="compact-list" id="classList"></div></section>
+          <section class="panel"><div class="panel-heading"><h2>Streams</h2><span id="streamCount"></span></div><div class="compact-list" id="streamList"></div></section>
+          <section class="panel"><div class="panel-heading"><h2>Subjects</h2><span id="subjectCount"></span></div><div class="compact-list" id="subjectList"></div></section>
+          <section class="panel"><div class="panel-heading"><h2>Teachers</h2><span id="teacherCount"></span></div><div class="compact-list" id="teacherList"></div></section>
+          <section class="panel assignment-panel">
+            <div class="panel-heading"><h2>Teacher Assignments</h2><span id="assignmentCount"></span></div>
+            <form id="teacherAssignmentForm" class="compact-form">
+              <label>Teacher <select name="teacherId" id="assignmentTeacherSelect"></select></label>
+              <label>Class & Stream <select name="classId" id="assignmentClassSelect"></select></label>
+              <label>Subject <select name="subjectId" id="assignmentSubjectSelect"></select></label>
+              <button type="submit">Assign</button>
+            </form>
+            <div class="compact-list" id="assignmentList"></div>
+          </section>
+          <section class="panel"><div class="panel-heading"><h2>Grading Scale</h2><span id="gradingCount"></span></div><div class="compact-list" id="gradingList"></div></section>
+          <section class="panel"><div class="panel-heading"><h2>Roles</h2><span id="roleCount"></span></div><div class="compact-list" id="roleList"></div></section>
+        </div>
+      </section>
+
+      <section id="students" class="view">
+        <section class="panel student-directory-panel">
+          <div class="panel-heading">
+            <div>
+              <h2>Find a Learner</h2>
+              <span>Search the register, filter by class or stream, then open the learner profile</span>
+            </div>
+            <span id="studentCountLabel"></span>
+          </div>
+          <div class="register-toolbar">
+            <label class="student-search-field">Search learners
+              <input id="studentSearchInput" type="search" placeholder="Name, admission number, parent or contact">
+            </label>
+            <label>Class <select id="studentFilterClassSelect"></select></label>
+            <label>Stream <select id="studentFilterStreamSelect"></select></label>
+            <label>Status <select id="studentFilterStatusSelect"></select></label>
+            <label class="mobile-student-sort">Sort By
+              <select id="studentSortSelect">
+                <option value="class">Class</option>
+                <option value="name">Name</option>
+                <option value="admissionNo">Admission Number</option>
+                <option value="stream">Stream</option>
+                <option value="status">Status</option>
+              </select>
+            </label>
+            <button id="downloadStudentListBtn" type="button" class="secondary">Download Visible List</button>
+          </div>
+          <div class="table-wrap">
+            <table id="studentRegisterTable">
+              <thead>
+                <tr>
+                  <th><button type="button" class="sort-heading" data-student-sort="studentId">Student ID</button></th>
+                  <th><button type="button" class="sort-heading" data-student-sort="name">Name</button></th>
+                  <th><button type="button" class="sort-heading" data-student-sort="gender">Gender</button></th>
+                  <th><button type="button" class="sort-heading" data-student-sort="class">Class</button></th>
+                  <th><button type="button" class="sort-heading" data-student-sort="stream">Stream</button></th>
+                  <th><button type="button" class="sort-heading" data-student-sort="house">House</button></th>
+                  <th><button type="button" class="sort-heading" data-student-sort="status">Status</button></th>
+                  <th><button type="button" class="sort-heading" data-student-sort="guardian">Parent</button></th>
+                  <th><button type="button" class="sort-heading" data-student-sort="contact">Contact</button></th>
+                  <th>Profile</th>
+                </tr>
+              </thead>
+              <tbody id="studentRegisterBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel student-import-panel" id="studentImportPanel">
+          <div class="panel-heading">
+            <div>
+              <h2>Upload Class List</h2>
+              <span>Import new students or update existing records using their admission numbers</span>
+            </div>
+            <button id="downloadStudentTemplateBtn" type="button" class="secondary">Download CSV Template</button>
+          </div>
+          <div class="student-import-grid">
+            <label>Upload Mode
+              <select id="studentImportModeSelect">
+                <option value="single">One class and stream</option>
+                <option value="multi">Multiple classes and streams</option>
+              </select>
+            </label>
+            <label class="student-import-default">Default Class <select id="importClassLevelSelect"></select></label>
+            <label class="student-import-default">Default Stream <select id="importStreamSelect"></select></label>
+            <label class="file-drop">Student CSV
+              <input id="studentCsvInput" type="file" accept=".csv,text/csv">
+              <span>Choose a CSV to validate and preview</span>
+            </label>
+          </div>
+          <div class="import-status-row">
+            <span id="studentImportSummary">No class list selected</span>
+            <div class="actions">
+              <button id="cancelStudentImportBtn" type="button" class="secondary" hidden>Cancel</button>
+              <button id="downloadStudentErrorsBtn" type="button" class="secondary" hidden>Download Error Report</button>
+              <button id="uploadStudentCsvBtn" type="button" disabled>Upload Students</button>
+            </div>
+          </div>
+          <div id="studentImportErrors" class="error-list"></div>
+          <div id="studentImportPreview" class="import-preview"></div>
+        </section>
+
+        <section class="panel" id="studentCreatePanel">
+          <div class="panel-heading">
+            <h2>Student Register</h2>
+            <span>Active learners appear in marks entry; inactive records remain historical</span>
+          </div>
+          <form id="studentForm" class="form-grid">
+            <label>Student ID <input name="studentId" required></label>
+            <label>Admission Number <input name="admissionNo" required></label>
+            <label>Full Name <input name="name" required></label>
+            <label>Gender <select name="gender"><option>F</option><option>M</option></select></label>
+            <label>Date of Birth <input name="dateOfBirth" type="date"></label>
+            <label>Class <select name="classLevel" id="studentClassLevelSelect"></select></label>
+            <label>Stream <select name="stream" id="studentStreamSelect"></select></label>
+            <label>House <input name="house" placeholder="Blue, Red, Yellow..."></label>
+            <label>Parent/Guardian <input name="guardian"></label>
+            <label>Parent Contact <input name="contact"></label>
+            <label>Student Photo <input id="newStudentPhotoInput" type="file" accept="image/*"></label>
+            <label>Status <select name="status" id="studentStatusSelect"></select></label>
+            <label>Admission Date <input name="admissionDate" type="date"></label>
+            <label>Attendance % <input name="attendance" type="number" min="0" max="100" value="90"></label>
+            <label>Notes <input name="notes"></label>
+            <button type="submit">Add Student</button>
+          </form>
+        </section>
+
+      </section>
+
+      <section id="studentProfile" class="view">
+        <div class="profile-actions">
+          <button id="backToStudentsBtn" type="button" class="secondary">Back to Students</button>
+          <button id="studentProfileReportBtn" type="button">Open Academic Report</button>
+        </div>
+        <section id="studentProfileContent" class="student-profile-shell"></section>
+      </section>
+
+      <section id="marks" class="view">
+        <div class="mobile-stepper" aria-label="Marks upload steps">
+          <div><strong>1</strong><span>Select context</span></div>
+          <div><strong>2</strong><span>Get template</span></div>
+          <div><strong>3</strong><span>Upload CSV</span></div>
+          <div><strong>4</strong><span>Review</span></div>
+        </div>
+        <section class="panel">
+          <div class="assessment-workflow">
+            <div>
+              <span>Assessment Workflow</span>
+              <strong id="assessmentWorkflowStatus" class="workflow-status">Draft</strong>
+              <small id="assessmentWorkflowDetail">Teachers can edit marks while this assessment is in Draft.</small>
+            </div>
+            <div class="actions" id="assessmentWorkflowActions">
+              <button id="submitAssessmentBtn" type="button">Submit to DOS</button>
+              <button id="approveAssessmentBtn" type="button">DOS Approve</button>
+              <button id="lockAssessmentBtn" type="button">Head Teacher Lock</button>
+              <button id="reopenAssessmentBtn" type="button" class="secondary">Reopen</button>
+            </div>
+          </div>
+          <div class="panel-heading">
+            <h2>Teacher Marks Upload</h2>
+            <span>CSV validation checks student, class, stream, subject, score, duplicates, and assignment</span>
+          </div>
+          <div class="marks-toolbar">
+            <label>Academic Year <select id="marksAcademicYearSelect"></select></label>
+            <label>Term <select id="marksTermSelect"></select></label>
+            <label>Exam Type <select id="marksExamTypeSelect"></select></label>
+            <label>Class <select id="marksClassLevelSelect"></select></label>
+            <label>Stream <select id="marksStreamSelect"></select></label>
+            <label>Subject <select id="subjectSelect"></select></label>
+            <label>Teacher <select id="marksTeacherSelect"></select></label>
+            <label>Upload Mode
+              <select id="marksImportModeSelect">
+                <option value="single">Selected class only</option>
+                <option value="multi">Multiple classes</option>
+              </select>
+            </label>
+            <label>CSV Upload <input id="csvInput" type="file" accept=".csv,text/csv"></label>
+            <button id="downloadTemplateBtn" class="secondary">Download CSV Template</button>
+            <button id="downloadErrorsBtn" class="secondary">Download Error Report</button>
+            <button id="uploadMarksCsvBtn" disabled>Upload Validated CSV</button>
+            <button id="saveMarksBtn">Save Marks</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Adm No.</th><th>Student</th><th>Class</th><th>Stream</th><th>Mark</th><th>Teacher Remark</th><th>Status</th></tr>
+              </thead>
+              <tbody id="marksBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Upload Validation</h2>
+            <span id="uploadSummary">No file uploaded this session</span>
+          </div>
+          <div id="uploadErrors" class="error-list"></div>
+        </section>
+      </section>
+
+      <section id="monitoring" class="view">
+        <div class="metric-grid">
+          <article class="metric"><span>Expected Uploads</span><strong id="metricExpected">0</strong></article>
+          <article class="metric status-complete"><span>Completed Uploads</span><strong id="metricCompleted">0</strong></article>
+          <article class="metric status-pending"><span>Pending Uploads</span><strong id="metricPending">0</strong></article>
+          <article class="metric status-late"><span>Overdue Uploads</span><strong id="metricLate">0</strong></article>
+          <article class="metric status-late"><span>Validation Failures</span><strong id="metricErrors">0</strong></article>
+          <article class="metric"><span>Teachers Uploaded</span><strong id="metricTeachersUploaded">0</strong></article>
+          <article class="metric status-pending"><span>Teachers Pending</span><strong id="metricTeachersPending">0</strong></article>
+        </div>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Deadline Tracker</h2>
+            <span>Green complete, orange pending, red overdue</span>
+          </div>
+          <div class="deadline-grid" id="deadlineGrid"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Deadline Management</h2>
+            <span>Set by year, term, exam, class, stream, subject, and teacher</span>
+          </div>
+          <form id="deadlineForm" class="form-grid">
+            <label>Academic Year <select name="academicYear" id="deadlineAcademicYearSelect"></select></label>
+            <label>Term <select name="term" id="deadlineTermSelect"></select></label>
+            <label>Exam Type <select name="examType" id="deadlineExamTypeSelect"></select></label>
+            <label>Class <select name="classLevel" id="deadlineClassLevelSelect"></select></label>
+            <label>Stream <select name="stream" id="deadlineStreamSelect"></select></label>
+            <label>Subject <select name="subjectId" id="deadlineSubjectSelect"></select></label>
+            <label>Teacher <select name="teacherId" id="deadlineTeacherSelect"></select></label>
+            <label>Due Date & Time <input name="dueAt" type="datetime-local" required></label>
+            <button type="submit">Save Deadline</button>
+          </form>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Upload Monitoring</h2>
+            <span>Expected vs completed uploads and teacher accountability</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Teacher</th><th>Class</th><th>Subject</th><th>Status</th><th>Uploaded</th><th>Valid</th><th>Errors</th></tr></thead>
+              <tbody id="uploadMonitorBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Audit Trail</h2>
+            <span>Mark uploads, edits, report generation, and approvals</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>User</th><th>Action</th><th>Timestamp</th><th>New Value</th></tr></thead>
+              <tbody id="auditBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section id="promotion" class="view">
+        <section class="promotion-guide">
+          <div>
+            <strong>Automatic Promote</strong>
+            <span>All required marks are present and the learner meets the promotion rule.</span>
+          </div>
+          <div>
+            <strong>Automatic Repeat</strong>
+            <span>All required marks are present, but the learner does not meet the rule.</span>
+          </div>
+          <div class="manual">
+            <strong>Manual Review</strong>
+            <span>One or more required results are missing. The system will not guess: an authorized user must choose Promote or Repeat.</span>
+          </div>
+        </section>
+        <div class="metric-grid">
+          <article class="metric"><span>Promotion Rule</span><strong id="promotionRuleMetric">-</strong></article>
+          <button type="button" class="metric promotion-filter status-complete" data-promotion-filter="PROMOTED"><span>Promote</span><strong id="promotionPromoteMetric">0</strong></button>
+          <button type="button" class="metric promotion-filter status-pending" data-promotion-filter="MANUAL REVIEW"><span>Manual Review</span><strong id="promotionReviewMetric">0</strong></button>
+          <button type="button" class="metric promotion-filter status-late" data-promotion-filter="REPEAT"><span>Repeat</span><strong id="promotionRepeatMetric">0</strong></button>
+        </div>
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Promotion Preview</h2>
+            <span>Preview, approve, update class/stream, and save promotion history</span>
+          </div>
+          <div class="actions">
+            <button id="approvePromotionBtn">Approve Resolved Decisions</button>
+            <button id="reviewManualPromotionsBtn" type="button" class="secondary">Review Manual Cases</button>
+            <button id="showAllPromotionsBtn" type="button" class="secondary">Show All</button>
+            <button id="rollbackPromotionBtn" type="button" class="danger-outline">Rollback Latest Approval</button>
+            <span id="promotionActionStatus" class="action-status"></span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Adm No.</th><th>Student</th><th>Current</th><th>Average</th><th>Failed</th><th>Review Reason</th><th>Final Decision</th><th>Target</th></tr></thead>
+              <tbody id="promotionBody"></tbody>
+            </table>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="panel-heading">
+            <div><h2>Class Promotion Rules</h2><span>Only subjects assessed for this class are considered; mandatory subjects can be added explicitly.</span></div>
+          </div>
+          <form id="promotionRuleForm" class="form-grid">
+            <label>Class & Stream <select name="classId" id="promotionRuleClassSelect"></select></label>
+            <label>Minimum Average <input name="minAverage" type="number" min="0" max="100" required></label>
+            <label>Maximum Failed Subjects <input name="maxFailedSubjects" type="number" min="0" max="20" required></label>
+            <label>Mandatory Subjects
+              <select name="mandatorySubjectIds" id="promotionMandatorySubjectsSelect" multiple size="5"></select>
+            </label>
+            <label class="checkbox-label"><input name="requireCompleteMarks" type="checkbox"> Require all applicable marks</label>
+            <button type="submit">Save Class Rule</button>
+          </form>
+        </section>
+      </section>
+
+      <section id="analytics" class="view">
+        <div class="metric-grid executive-metrics">
+          <article class="metric"><span>Total Learners</span><strong id="execTotal">0</strong></article>
+          <article class="metric"><span>Active Learners</span><strong id="execActive">0</strong></article>
+          <article class="metric"><span>School Average</span><strong id="execAverage">0</strong></article>
+          <article class="metric status-complete"><span>Promotion Rate</span><strong id="execPromotion">0%</strong></article>
+          <article class="metric"><span>Upload Completion</span><strong id="execUploads">0%</strong></article>
+          <article class="metric"><span>Subjects Submitted</span><strong id="execSubjects">0</strong></article>
+          <article class="metric status-complete"><span>Best Subject</span><strong id="execTopSubject">-</strong><small id="execTopSubjectScore">No data</small></article>
+          <article class="metric status-late"><span>Needs Attention</span><strong id="execLowestSubject">-</strong><small id="execLowestSubjectScore">No data</small></article>
+          <article class="metric status-pending"><span>At Risk Learners</span><strong id="execAtRisk">0</strong><small>Average below pass mark</small></article>
+        </div>
+        <div class="analytics-summary-grid">
+          <section class="panel"><div class="panel-heading"><h2>Class Comparison</h2><span>Average by class</span></div><div id="classComparisonBars" class="bar-list"></div></section>
+          <section class="panel"><div class="panel-heading"><h2>Gender Analysis</h2><span>Participation and performance</span></div><div id="genderAnalysis" class="summary-list"></div></section>
+          <section class="panel"><div class="panel-heading"><h2>Stream Analysis</h2><span>East and West comparison</span></div><div id="streamAnalysis" class="summary-list"></div></section>
+          <section class="panel"><div class="panel-heading"><h2>Performance Bands</h2><span>Learners grouped by current average</span></div><div id="performanceBandAnalysis" class="performance-band-list"></div></section>
+        </div>
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Subject Statistics</h2>
+            <span>Average, highest, lowest, and entries</span>
+          </div>
+          <div id="subjectBars" class="bar-list"></div>
+        </section>
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Class Subject Analysis</h2>
+            <span>Subject averages, pass rates, and missing marks for the selected class and stream</span>
+          </div>
+          <div id="classSubjectBars" class="bar-list"></div>
+        </section>
+        <section class="panel analytics-drill-panel">
+          <div class="panel-heading">
+            <div><h2 id="analyticsDrillTitle">Learners by Class</h2><span>Choose a class, then narrow to a stream</span></div>
+            <button id="downloadAnalyticsLearnersBtn" type="button" class="secondary">Download List</button>
+          </div>
+          <div class="register-toolbar">
+            <label>Class <select id="analyticsClassSelect"></select></label>
+            <label>Stream <select id="analyticsStreamSelect"></select></label>
+          </div>
+          <div id="analyticsLearnerList" class="analytics-learner-list"></div>
+        </section>
+      </section>
+
+      <section id="reports" class="view">
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Premium Report Cards</h2>
+            <span id="reportModeLabel">Individual report preview</span>
+          </div>
+          <div class="report-toolbar">
+            <label>Class & Stream <select id="reportClassSelect"></select></label>
+            <label>Student <select id="reportStudentSelect"></select></label>
+            <button id="viewStudentReportBtn" class="secondary">View Student</button>
+            <button id="printStudentReportBtn">Print Student</button>
+            <button id="printClassReportsBtn">Print Class Reports</button>
+          </div>
+          <div id="reportCards" class="report-stack"></div>
+        </section>
+        <section class="panel">
+          <div class="panel-heading">
+            <div><h2>Report Archive</h2><span>Reopen historical report cards by learner, admission number, class, or verification code</span></div>
+          </div>
+          <div class="register-toolbar">
+            <label class="student-search-field">Search archive <input id="reportArchiveSearchInput" type="search" placeholder="Name, admission number, class or code"></label>
+          </div>
+          <div id="reportArchiveList" class="compact-list"></div>
+        </section>
+        <button id="mobileReportDownloadBtn" class="mobile-report-action">Download PDF</button>
+      </section>
+
+      <section id="parentPortal" class="view">
+        <section class="verification-hero">
+          <div>
+            <p class="eyebrow">Parent & Guardian Access</p>
+            <h2>Verify a Learner Report</h2>
+            <p>Enter the verification code printed on the report card to view the official online result.</p>
+          </div>
+          <form id="verificationForm" class="verification-form">
+            <label>Verification Code <input id="verificationCodeInput" required placeholder="MJA-2026-..."></label>
+            <button type="submit">Verify Report</button>
+          </form>
+        </section>
+        <section id="verificationContent" class="verification-content"></section>
+      </section>
+
+      <section id="accessControl" class="view">
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Staff Access Control</h2>
+            <span>Create staff accounts and assign the modules they can access</span>
+          </div>
+          <form id="userForm" class="form-grid">
+            <label>Full Name <input name="name" required></label>
+            <label>Email <input name="email" type="email" required></label>
+            <label>Temporary Password <input name="password" type="password" minlength="8" required></label>
+            <label>Role <select name="role"><option>School Admin</option><option>Head Teacher</option><option>DOS</option><option>Class Teacher</option><option>Subject Teacher</option><option>Bursar</option><option>Parent</option><option>Viewer</option><option>Super Admin</option></select></label>
+            <button type="submit">Create Staff Account</button>
+          </form>
+        </section>
+        <section class="panel">
+          <div class="panel-heading"><h2>Authorized Users</h2><span id="userCountLabel">0 users</span></div>
+          <div id="userList" class="user-list"></div>
+        </section>
+      </section>
+    </main>
+
+    <nav class="mobile-bottom-nav" id="staffMobileNav" aria-label="Primary navigation" hidden>
+      <button class="mobile-nav-button active" data-view="dashboard"><span>Home</span></button>
+      <button class="mobile-nav-button" data-view="students"><span>Students</span></button>
+      <button class="mobile-nav-button" data-view="marks"><span>Marks</span></button>
+      <button class="mobile-nav-button" data-view="reports"><span>Reports</span></button>
+      <button class="mobile-nav-button" id="moreNavButton" type="button"><span>More</span></button>
+    </nav>
+
+    <div class="mobile-sheet-backdrop" id="mobileSheetBackdrop"></div>
+    <aside class="mobile-more-sheet" id="mobileMoreSheet" aria-hidden="true">
+      <div class="mobile-sheet-heading">
+        <div><strong>More modules</strong><span>Administration and performance tools</span></div>
+        <button id="closeMoreSheet" type="button" aria-label="Close menu">Close</button>
+      </div>
+      <div class="mobile-more-grid">
+        <button class="mobile-more-button" data-view="setup">Setup</button>
+        <button class="mobile-more-button" data-view="monitoring">Monitoring</button>
+        <button class="mobile-more-button" data-view="promotion">Promotion</button>
+        <button class="mobile-more-button" data-view="analytics">Analytics</button>
+        <button class="mobile-more-button" data-view="accessControl">Access Control</button>
+      </div>
+    </aside>
+
+    <div id="toast" role="status"></div>
+    <script src="/app.js"></script>
+  </body>
+</html>

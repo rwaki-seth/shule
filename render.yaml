@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: shule-mvp1
+    runtime: node
+    plan: starter
+    buildCommand: ""
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: SHULE_DB_PATH
+        value: /var/data/shule-db.json
+    disk:
+      name: shule-data
+      mountPath: /var/data
+      sizeGB: 1
