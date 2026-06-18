@@ -12,6 +12,7 @@ const {
   approvePromotion,
   calculateResults,
   importStudents,
+  isDuplicateMark,
   listAudit,
   listMarks,
   listReportArchive,
@@ -62,6 +63,33 @@ test("student management can add and import learners", () => {
   assert.equal(preview.created, 1);
 });
 
+test("student import skips exact duplicates already in the system", () => {
+  const db = freshDb();
+  const existing = db.students.find((student) => student.admissionNo === "MJA-1003");
+  const result = importStudents(db, {
+    students: [{
+      admissionNo: existing.admissionNo,
+      studentId: existing.studentId,
+      name: existing.name,
+      gender: existing.gender,
+      dateOfBirth: existing.dateOfBirth,
+      classLevel: existing.classLevel,
+      stream: existing.stream,
+      house: existing.house,
+      guardian: existing.guardian,
+      contact: existing.contact,
+      status: existing.status,
+      admissionDate: existing.admissionDate,
+      attendance: existing.attendance,
+      notes: existing.notes
+    }]
+  }, { commit: false });
+  assert.equal(result.created, 0);
+  assert.equal(result.updated, 0);
+  assert.equal(result.skipped, 1);
+  assert.match(result.duplicateWarning, /skipped/);
+});
+
 test("marks upload validation catches invalid scores and accepts clean marks", () => {
   const db = freshDb();
   const context = {
@@ -76,6 +104,26 @@ test("marks upload validation catches invalid scores and accepts clean marks", (
   assert.match(validateMarks(db, context)[0].errorMessage, /0 and 100/);
   context.marks = [{ admissionNo: "MJA-1003", score: 75 }];
   assert.equal(validateMarks(db, context).length, 0);
+});
+
+test("marks upload detects exact duplicate mark records", () => {
+  const db = freshDb();
+  const existing = db.marks.find((mark) =>
+    mark.studentId === "mja-1003" &&
+    mark.subjectId === "eng" &&
+    mark.academicYear === db.school.academicYear &&
+    mark.term === db.school.term &&
+    mark.examType === db.school.exam
+  );
+  assert.equal(isDuplicateMark(db, {
+    admissionNo: "MJA-1003",
+    subjectId: existing.subjectId,
+    academicYear: existing.academicYear,
+    term: existing.term,
+    examType: existing.examType,
+    score: existing.score,
+    remarks: existing.remarks
+  }), true);
 });
 
 test("promotion approval records history and preserves manual reviews", () => {

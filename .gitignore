@@ -3,3 +3,11 @@ node_modules/
 .env
 .DS_Store
 *.log
+shule-work/
+shule-app/
+test data/
+__pycache__/
+crb_csv_loader.py
+CRB_CSV_LOADER.md
+Load CRB CSV files into a db.txt
+Run CRB CSV loader in Jupyter.txt

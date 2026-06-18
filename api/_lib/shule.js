@@ -952,6 +952,26 @@ function upsertMark(db, payload) {
   touchAssessmentWorkflow(db, payload, "Draft", payload.updatedBy || "Teacher");
 }
 
+function findExistingMark(db, payload) {
+  const student = db.students.find((item) => item.id === payload.studentId || item.admissionNo === payload.admissionNo);
+  if (!student) return null;
+  return db.marks.find((mark) =>
+    mark.studentId === student.id &&
+    mark.subjectId === payload.subjectId &&
+    mark.academicYear === payload.academicYear &&
+    mark.term === payload.term &&
+    mark.examType === payload.examType
+  ) || null;
+}
+
+function isDuplicateMark(db, payload) {
+  const existing = findExistingMark(db, payload);
+  if (!existing) return false;
+  return Number(existing.score) === Number(payload.score) &&
+    String(existing.status || "Captured") === String(payload.status || "Captured") &&
+    String(existing.remarks || "") === String(payload.remarks || "");
+}
+
 function assessmentWorkflowKey(context) {
   return [
     context.academicYear,
@@ -1102,6 +1122,7 @@ function importStudents(db, body, options = {}) {
 
   const errors = [];
   const prepared = [];
+  const skippedDuplicates = [];
   const seen = new Set();
 
   rows.forEach((input, index) => {
@@ -1137,7 +1158,11 @@ function importStudents(db, body, options = {}) {
         photo: supplied.photo || existing?.photo || ""
       }, existing);
       validateStudentRow(db, studentRow, existing);
-      prepared.push({ existing, studentRow });
+      if (existing && isDuplicateStudent(existing, studentRow)) {
+        skippedDuplicates.push({ rowNumber, admissionNo: studentRow.admissionNo, name: studentRow.name });
+        return;
+      }
+      prepared.push({ existing, studentRow, rowNumber });
     } catch (error) {
       errors.push(errorRow(rowNumber, admissionNo, "Invalid Student", error.message));
     }
@@ -1147,6 +1172,7 @@ function importStudents(db, body, options = {}) {
 
   const created = prepared.filter((item) => !item.existing).length;
   const updated = prepared.length - created;
+  const skipped = skippedDuplicates.length;
   const classBreakdown = [...prepared.reduce((groups, { studentRow }) => {
     const label = `${studentRow.classLevel} ${studentRow.stream}`.trim();
     groups.set(label, (groups.get(label) || 0) + 1);
@@ -1159,16 +1185,28 @@ function importStudents(db, body, options = {}) {
       errors: [],
       created,
       updated,
+      skipped,
+      duplicateWarning: duplicateUploadWarning(skipped, rows.length),
       total: prepared.length,
       classBreakdown,
-      preview: prepared.slice(0, 25).map(({ existing, studentRow }) => ({
-        rowNumber: rows.find((row) => String(row.admissionNo || row.studentId || "").trim().toLowerCase() === studentRow.admissionNo.toLowerCase())?.rowNumber || "",
+      preview: [
+        ...prepared.slice(0, 25).map(({ existing, studentRow, rowNumber }) => ({
+        rowNumber,
         admissionNo: studentRow.admissionNo,
         name: studentRow.name,
         classLevel: studentRow.classLevel,
         stream: studentRow.stream,
         action: existing ? "Update" : "Create"
-      }))
+        })),
+        ...skippedDuplicates.slice(0, Math.max(0, 25 - prepared.length)).map((item) => ({
+          rowNumber: item.rowNumber,
+          admissionNo: item.admissionNo,
+          name: item.name,
+          classLevel: "",
+          stream: "",
+          action: "Skip duplicate"
+        }))
+      ]
     };
   }
 
@@ -1179,8 +1217,36 @@ function importStudents(db, body, options = {}) {
       db.students.push(studentRow);
     }
   }
-  db.audit.push(audit("School Admin", "Imported student class list", "-", `${created} created, ${updated} updated`));
-  return { ok: true, errors: [], created, updated, total: prepared.length, classBreakdown };
+  db.audit.push(audit("School Admin", "Imported student class list", "-", `${created} created, ${updated} updated, ${skipped} duplicate(s) skipped`));
+  return { ok: true, errors: [], created, updated, skipped, duplicateWarning: duplicateUploadWarning(skipped, rows.length), total: prepared.length, classBreakdown };
+}
+
+function isDuplicateStudent(existing, incoming) {
+  const fields = [
+    "studentId",
+    "admissionNo",
+    "name",
+    "gender",
+    "dateOfBirth",
+    "classLevel",
+    "stream",
+    "house",
+    "guardian",
+    "contact",
+    "status",
+    "admissionDate",
+    "notes"
+  ];
+  return fields.every((field) => String(existing[field] || "").trim() === String(incoming[field] || "").trim()) &&
+    Number(existing.attendance || 0) === Number(incoming.attendance || 0);
+}
+
+function duplicateUploadWarning(skipped, totalRows) {
+  if (!skipped) return "";
+  const percent = totalRows ? Math.round((skipped / totalRows) * 100) : 0;
+  return percent >= 50
+    ? `${skipped} duplicate record(s) were already in the system and were skipped. More than half of this file already exists.`
+    : `${skipped} duplicate record(s) were already in the system and were skipped.`;
 }
 
 function ensureTeacher(db, body) {
@@ -2095,6 +2161,7 @@ module.exports = {
   listMarks,
   listReportArchive,
   listStudents,
+  isDuplicateMark,
   publicAssetRef,
   secureStudentPhoto,
   signedStorageUrl,

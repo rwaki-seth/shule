@@ -20,6 +20,7 @@ const {
   archiveReports,
   ensureTeacher,
   importStudents,
+  isDuplicateMark,
   approvePromotion,
   assessmentWorkflowFor,
   audit,
@@ -441,7 +442,9 @@ async function handleApi(req, res, pathname, searchParams) {
       return sendJson(res, 422, { ok: false, errors: validationErrors });
     }
     let savedCount = 0;
+    let skippedDuplicateCount = 0;
     for (const batch of batches) {
+      let batchSkippedDuplicates = 0;
       const context = {
         ...batch,
         academicYear: batch.academicYear || body.academicYear,
@@ -451,7 +454,7 @@ async function handleApi(req, res, pathname, searchParams) {
         teacherId: batch.teacherId || body.teacherId
       };
       for (const mark of context.marks || []) {
-        upsertMark(db, {
+        const payload = {
           ...mark,
           academicYear: context.academicYear,
           term: context.term,
@@ -460,7 +463,13 @@ async function handleApi(req, res, pathname, searchParams) {
           subjectId: context.subjectId,
           teacherId: context.teacherId,
           updatedBy: session.name
-        });
+        };
+        if (isDuplicateMark(db, payload)) {
+          skippedDuplicateCount += 1;
+          batchSkippedDuplicates += 1;
+          continue;
+        }
+        upsertMark(db, payload);
         savedCount += 1;
       }
       db.uploadBatches.push({
@@ -473,15 +482,22 @@ async function handleApi(req, res, pathname, searchParams) {
         examType: context.examType,
         status: "complete",
         rows: context.marks.length,
-        validRows: context.marks.length,
+        validRows: context.marks.length - batchSkippedDuplicates,
         errorRows: 0,
+        skippedDuplicates: batchSkippedDuplicates,
         uploadedAt: new Date().toISOString()
       });
     }
     db.uploadErrors = [];
-    db.audit.push(audit(session.name, "Uploaded marks", "-", `${savedCount} mark(s) across ${batches.length} class(es)`));
+    db.audit.push(audit(session.name, "Uploaded marks", "-", `${savedCount} mark(s) saved, ${skippedDuplicateCount} duplicate(s) skipped across ${batches.length} class(es)`));
     await saveDb(db);
-    return sendJson(res, 200, { ok: true, results: calculateResults(db) });
+    return sendJson(res, 200, {
+      ok: true,
+      saved: savedCount,
+      skippedDuplicates: skippedDuplicateCount,
+      duplicateWarning: skippedDuplicateCount ? `${skippedDuplicateCount} duplicate mark record(s) were already in the system and were skipped.` : "",
+      results: calculateResults(db)
+    });
   }
 
   if (req.method === "POST" && pathname === "/api/deadlines") {

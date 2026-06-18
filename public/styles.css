@@ -2011,6 +2011,83 @@ button.metric.promotion-filter strong {
   font-size: 11px;
 }
 
+.one-page-report {
+  min-height: 0;
+  padding: 20px;
+  gap: 10px;
+}
+
+.compact-report-header {
+  grid-template-columns: 64px 1fr 72px;
+  padding-bottom: 10px;
+}
+
+.compact-report-header h2 {
+  font-size: 1.25rem;
+}
+
+.one-page-student-grid,
+.one-page-summary {
+  display: grid;
+  grid-template-columns: 90px repeat(5, 1fr);
+  gap: 8px;
+  align-items: stretch;
+}
+
+.one-page-student-grid > div,
+.one-page-summary > div {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  background: #fff;
+}
+
+.one-page-student-grid span,
+.one-page-summary span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.one-page-student-grid strong,
+.one-page-summary strong {
+  display: block;
+  font-size: 0.96rem;
+  color: var(--ink);
+}
+
+.one-page-table th,
+.one-page-table td {
+  padding: 7px 8px;
+  font-size: 0.78rem;
+}
+
+.one-page-comments {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.2fr;
+  gap: 8px;
+}
+
+.one-page-comments div {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.one-page-comments strong,
+.one-page-comments span {
+  display: block;
+}
+
+.one-page-comments span {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.compact-signatures {
+  gap: 8px;
+}
+
 #toast {
   position: fixed;
   right: 20px;
@@ -2809,6 +2886,66 @@ button.metric.promotion-filter strong {
   body.print-student .report-page:last-child {
     page-break-after: auto;
     break-after: auto;
+  }
+
+  body.print-one-page .report-page {
+    min-height: 0;
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  body.print-one-page .one-page-report {
+    padding: 0;
+    font-size: 10px;
+  }
+
+  body.print-one-page .compact-report-header {
+    grid-template-columns: 52px 1fr 58px;
+    gap: 8px;
+  }
+
+  body.print-one-page .compact-report-header h2 {
+    font-size: 18px;
+  }
+
+  body.print-one-page .logo-box,
+  body.print-one-page .qr-box {
+    width: 52px;
+    min-height: 52px;
+  }
+
+  body.print-one-page .qr-box img {
+    width: 44px;
+    height: 44px;
+  }
+
+  body.print-one-page .one-page-student-grid,
+  body.print-one-page .one-page-summary {
+    grid-template-columns: 72px repeat(5, 1fr);
+    gap: 5px;
+  }
+
+  body.print-one-page .one-page-student-grid > div,
+  body.print-one-page .one-page-summary > div,
+  body.print-one-page .one-page-comments div {
+    padding: 5px;
+  }
+
+  body.print-one-page .one-page-table th,
+  body.print-one-page .one-page-table td {
+    padding: 4px 5px;
+    font-size: 9px;
+  }
+
+  body.print-one-page .signature-grid > div {
+    min-height: 36px;
+    padding-top: 20px;
+  }
+
+  body.print-one-page .report-footer {
+    margin-top: 8px;
+    padding-top: 6px;
+    font-size: 8px;
   }
 }
 

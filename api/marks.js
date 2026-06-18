@@ -1,4 +1,4 @@
-const { audit, calculateResults, loadDb, saveDb, sendError, sendJson, upsertMark, validateMarks } = require("./_lib/shule");
+const { audit, calculateResults, isDuplicateMark, loadDb, saveDb, sendError, sendJson, upsertMark, validateMarks } = require("./_lib/shule");
 
 module.exports = async function handler(req, res) {
   try {
@@ -12,15 +12,25 @@ module.exports = async function handler(req, res) {
       await saveDb(db);
       return sendJson(res, 422, { ok: false, errors });
     }
-    for (const mark of body.marks || []) upsertMark(db, {
-      ...mark,
-      academicYear: body.academicYear,
-      term: body.term,
-      examType: body.examType,
-      classId: body.classId,
-      subjectId: body.subjectId,
-      teacherId: body.teacherId
-    });
+    let saved = 0;
+    let skippedDuplicates = 0;
+    for (const mark of body.marks || []) {
+      const payload = {
+        ...mark,
+        academicYear: body.academicYear,
+        term: body.term,
+        examType: body.examType,
+        classId: body.classId,
+        subjectId: body.subjectId,
+        teacherId: body.teacherId
+      };
+      if (isDuplicateMark(db, payload)) {
+        skippedDuplicates += 1;
+        continue;
+      }
+      upsertMark(db, payload);
+      saved += 1;
+    }
     db.uploadErrors = [];
     db.uploadBatches.push({
       id: `batch-${Date.now()}`,
@@ -32,13 +42,20 @@ module.exports = async function handler(req, res) {
       examType: body.examType,
       status: "complete",
       rows: body.marks.length,
-      validRows: body.marks.length,
+      validRows: saved,
       errorRows: 0,
+      skippedDuplicates,
       uploadedAt: new Date().toISOString()
     });
-    db.audit.push(audit("Subject Teacher", "Uploaded marks", "-", `${body.marks.length} mark(s)`));
+    db.audit.push(audit("Subject Teacher", "Uploaded marks", "-", `${saved} mark(s) saved, ${skippedDuplicates} duplicate(s) skipped`));
     await saveDb(db);
-    return sendJson(res, 200, { ok: true, results: calculateResults(db) });
+    return sendJson(res, 200, {
+      ok: true,
+      saved,
+      skippedDuplicates,
+      duplicateWarning: skippedDuplicates ? `${skippedDuplicates} duplicate mark record(s) were already in the system and were skipped.` : "",
+      results: calculateResults(db)
+    });
   } catch (error) {
     return sendError(res, 400, error.message || "Request failed");
   }
