@@ -4,7 +4,6 @@ let selectedReportClassId = null;
 let selectedReportStudentId = null;
 let selectedProfileStudentId = null;
 let reportMode = "student";
-let reportLayout = "detailed";
 let latestUploadErrors = [];
 let latestStudentImportErrors = [];
 let connectionStatus = { configured: false, mode: "checking", lastError: "" };
@@ -185,7 +184,6 @@ const els = {
   reportClassSelect: document.getElementById("reportClassSelect"),
   reportStudentSelect: document.getElementById("reportStudentSelect"),
   viewStudentReportBtn: document.getElementById("viewStudentReportBtn"),
-  printOnePageReportBtn: document.getElementById("printOnePageReportBtn"),
   printStudentReportBtn: document.getElementById("printStudentReportBtn"),
   printClassReportsBtn: document.getElementById("printClassReportsBtn"),
   mobileReportDownloadBtn: document.getElementById("mobileReportDownloadBtn"),
@@ -1282,7 +1280,6 @@ function renderReportSelect() {
   const disabled = classStudents.length === 0;
   els.reportStudentSelect.disabled = disabled;
   els.viewStudentReportBtn.disabled = disabled;
-  els.printOnePageReportBtn.disabled = disabled;
   els.printStudentReportBtn.disabled = disabled;
   els.printClassReportsBtn.disabled = disabled;
 }
@@ -1292,70 +1289,17 @@ function renderReports() {
   const classInfo = classById(selectedReportClassId);
   const className = classInfo?.name || "Selected class";
   const students = reportMode === "class" ? classStudents : classStudents.filter((student) => student.id === selectedReportStudentId);
-  els.reportModeLabel.textContent = reportLayout === "one-page"
-    ? `One-page report preview: ${className}`
-    : reportMode === "class" ? `${className} reports: one learner per printed packet` : `Individual report preview: ${className}`;
+  els.reportModeLabel.textContent = reportMode === "class" ? `${className} reports: one learner per printed packet` : `Individual report preview: ${className}`;
   els.reportCards.innerHTML = students.length ? students.map(renderReportPacket).join("") : `<div class="empty-state">Select a class with active learners to preview and print reports.</div>`;
   renderReportArchive();
 }
 
 function renderReportPacket(student) {
-  if (reportLayout === "one-page") return renderOnePageReportPacket(student);
   return `
     <article class="report-packet">
       ${renderReportPageOne(student)}
       ${renderReportPageTwo(student)}
       ${renderReportPageThree(student)}
-    </article>
-  `;
-}
-
-function renderOnePageReportPacket(student) {
-  const coreSubjects = student.subjects.slice(0, 10);
-  return `
-    <article class="report-packet one-page-packet">
-      <section class="report-page one-page-report">
-        <div class="watermark">${escapeHtml(db.school.watermarkText || db.school.shortName || "SHULE")}</div>
-        <header class="report-header compact-report-header">
-          <div class="logo-box">${db.school.logoUrl ? `<img src="${escapeHtml(db.school.logoUrl)}" alt="Logo">` : escapeHtml(db.school.shortName || "SHULE")}</div>
-          <div>
-            <h2>${escapeHtml(results.school.name)}</h2>
-            <p>${escapeHtml(results.school.motto)} | ${escapeHtml(results.school.academicYear)} ${escapeHtml(results.school.term)} ${escapeHtml(results.school.exam)}</p>
-          </div>
-          <div class="qr-box"><img src="/api/qr?code=${encodeURIComponent(student.verificationCode)}" alt="Report verification QR code"><small>${escapeHtml(student.verificationCode.slice(-6))}</small></div>
-        </header>
-        <section class="one-page-student-grid">
-          <div class="photo-box">${student.photo ? `<img src="${escapeHtml(photoSrc(student.photo))}" alt="Student photo">` : "Photo"}</div>
-          <div><span>Name</span><strong>${escapeHtml(student.name)}</strong></div>
-          <div><span>Adm No.</span><strong>${escapeHtml(student.admissionNo)}</strong></div>
-          <div><span>Class</span><strong>${escapeHtml(student.className)} ${escapeHtml(student.stream)}</strong></div>
-          <div><span>Attendance</span><strong>${student.attendance}%</strong></div>
-          <div><span>Position</span><strong>${student.classPosition}</strong></div>
-        </section>
-        <div class="one-page-summary">
-          <div><span>Total</span><strong>${student.total}</strong></div>
-          <div><span>Average</span><strong>${student.average}</strong></div>
-          <div><span>Grade</span><strong>${student.overallGrade}</strong></div>
-          <div><span>Aggregate</span><strong>${student.aggregate}</strong></div>
-          <div><span>Promotion</span><strong>${escapeHtml(student.promotion)}</strong></div>
-        </div>
-        <table class="report-table one-page-table">
-          <thead><tr><th>Subject</th><th>Final</th><th>Grade</th><th>Agg.</th><th>Comment</th></tr></thead>
-          <tbody>${coreSubjects.map((subject) => `<tr><td>${escapeHtml(subject.subjectName)}</td><td>${valueOrDash(subject.score)}</td><td>${escapeHtml(subject.grade)}</td><td>${valueOrDash(subject.aggregate)}</td><td>${escapeHtml(subject.comment)}</td></tr>`).join("")}</tbody>
-        </table>
-        <section class="one-page-comments">
-          <div><strong>Class Teacher</strong><span>${escapeHtml(student.reportComments?.classTeacher || "No comment recorded.")}</span></div>
-          <div><strong>Head Teacher</strong><span>${escapeHtml(student.reportComments?.headTeacher || "No comment recorded.")}</span></div>
-          <div><strong>Next Term</strong><span>Opens ${escapeHtml(db.nextTerm.openingDate || "-")} | ${escapeHtml(db.nextTerm.requirements || "Requirements to be communicated.")}</span></div>
-        </section>
-        <section class="signature-grid compact-signatures">
-          <div>Class Teacher</div>
-          <div>Head Teacher</div>
-          <div>Parent</div>
-          <div>Stamp</div>
-        </section>
-        ${reportFooter(student)}
-      </section>
     </article>
   `;
 }
@@ -2203,7 +2147,6 @@ async function rollbackLatestPromotion() {
 function viewStudentReport() {
   selectedReportStudentId = els.reportStudentSelect.value;
   reportMode = "student";
-  reportLayout = "detailed";
   renderReports();
 }
 
@@ -2216,22 +2159,9 @@ async function printStudentReport() {
   window.print();
 }
 
-async function printOnePageReport() {
-  if (!selectedReportClassStudents().length) return toast("Select a class with learners first");
-  selectedReportStudentId = els.reportStudentSelect.value;
-  reportMode = "student";
-  reportLayout = "one-page";
-  renderReports();
-  await archiveCurrentReports("student");
-  document.body.classList.remove("print-class");
-  document.body.classList.add("print-student", "print-one-page");
-  window.print();
-}
-
 async function printClassReports() {
   if (!selectedReportClassStudents().length) return toast("Select a class with learners first");
   reportMode = "class";
-  reportLayout = "detailed";
   renderReports();
   await archiveCurrentReports("class");
   document.body.classList.remove("print-student");
@@ -2558,12 +2488,10 @@ els.reportClassSelect.addEventListener("change", () => {
   selectedReportClassId = els.reportClassSelect.value;
   selectedReportStudentId = null;
   reportMode = "student";
-  reportLayout = "detailed";
   renderReportSelect();
   renderReports();
 });
 els.viewStudentReportBtn.addEventListener("click", viewStudentReport);
-els.printOnePageReportBtn.addEventListener("click", printOnePageReport);
 els.printStudentReportBtn.addEventListener("click", printStudentReport);
 els.printClassReportsBtn.addEventListener("click", printClassReports);
 els.mobileReportDownloadBtn.addEventListener("click", printStudentReport);
@@ -2573,9 +2501,8 @@ els.reportArchiveSearchInput?.addEventListener("input", () => {
 });
 els.verificationForm?.addEventListener("submit", verifyReport);
 window.addEventListener("afterprint", () => {
-  document.body.classList.remove("print-class", "print-student", "print-one-page");
+  document.body.classList.remove("print-class", "print-student");
   reportMode = "student";
-  reportLayout = "detailed";
   renderReports();
 });
 
