@@ -208,9 +208,20 @@ const els = {
 };
 
 async function api(path, options = {}) {
+  const method = String(options.method || "GET").toUpperCase();
+  const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+  if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
+    const csrfToken = document.cookie
+      .split(";")
+      .map((part) => part.trim())
+      .find((part) => part.startsWith("shule_csrf="))
+      ?.split("=")[1];
+    if (csrfToken) headers["X-CSRF-Token"] = decodeURIComponent(csrfToken);
+  }
   const response = await fetch(path, {
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-    ...options
+    credentials: "same-origin",
+    ...options,
+    headers,
   });
   const payload = await response.json();
   if (!response.ok) {

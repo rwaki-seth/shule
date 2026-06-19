@@ -22,7 +22,7 @@ const {
   verifiedReport,
   writeDb
 } = require("../api/_lib/shule");
-const { requireRoles, requireSession } = require("../api/_lib/auth");
+const { validateCsrf, requireRoles, requireSession } = require("../api/_lib/auth");
 
 const baseDb = readDb();
 
@@ -34,6 +34,18 @@ test("login guards reject anonymous and wrong-role access", () => {
   assert.throws(() => requireSession(null), /Sign in is required/);
   assert.throws(() => requireRoles({ role: "Viewer" }, ["School Admin"]), /does not permit/);
   assert.equal(requireRoles({ role: "School Admin" }, ["School Admin"]).role, "School Admin");
+});
+
+test("CSRF guard rejects mutations without matching double-submit tokens", () => {
+  assert.throws(() => validateCsrf({ method: "POST", headers: {} }), /CSRF token/);
+  assert.throws(() => validateCsrf({
+    method: "POST",
+    headers: { cookie: "shule_csrf=abc123", "x-csrf-token": "wrong" }
+  }), /CSRF token/);
+  assert.doesNotThrow(() => validateCsrf({
+    method: "POST",
+    headers: { cookie: "shule_csrf=abc123", "x-csrf-token": "abc123" }
+  }));
 });
 
 test("student management can add and import learners", () => {

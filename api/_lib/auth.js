@@ -13,10 +13,6 @@ const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ||
   "";
 const SETUP_KEY = process.env.SHULE_SETUP_KEY || "";
 const DEFAULT_TENANT_CODE = String(process.env.SHULE_TENANT_CODE || "main").trim().toLowerCase();
-const SUPER_ADMIN_EMAILS = String(process.env.SHULE_SUPER_ADMIN_EMAILS || "")
-  .split(",")
-  .map((email) => email.trim().toLowerCase())
-  .filter(Boolean);
 
 const ROLE_VIEWS = {
   "Super Admin": ["dashboard", "setup", "students", "marks", "monitoring", "promotion", "analytics", "reports", "accessControl"],
@@ -38,11 +34,17 @@ function parseCookies(req) {
   }).filter(([key]) => key));
 }
 
+function appendSetCookies(res, cookies) {
+  const existing = res.getHeader("Set-Cookie");
+  const current = Array.isArray(existing) ? existing : existing ? [existing] : [];
+  res.setHeader("Set-Cookie", [...current, ...cookies]);
+}
+
 function sessionCookies(res, session) {
   const secure = process.env.NODE_ENV === "production" || Boolean(process.env.VERCEL);
   const base = `Path=/; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`;
   const expiresIn = Math.max(60, Number(session.expires_in || 3600));
-  res.setHeader("Set-Cookie", [
+  appendSetCookies(res, [
     `shule_access=${encodeURIComponent(session.access_token)}; Max-Age=${expiresIn}; ${base}`,
     `shule_refresh=${encodeURIComponent(session.refresh_token)}; Max-Age=2592000; ${base}`
   ]);
@@ -51,10 +53,35 @@ function sessionCookies(res, session) {
 function clearSessionCookies(res) {
   const secure = process.env.NODE_ENV === "production" || Boolean(process.env.VERCEL);
   const base = `Path=/; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`;
-  res.setHeader("Set-Cookie", [
+  appendSetCookies(res, [
     `shule_access=; Max-Age=0; ${base}`,
     `shule_refresh=; Max-Age=0; ${base}`
   ]);
+}
+
+function ensureCsrfToken(req, res) {
+  const cookies = parseCookies(req);
+  const existing = String(cookies.shule_csrf || "");
+  const token = existing.length >= 32 ? existing : crypto.randomBytes(32).toString("base64url");
+  if (token !== existing) {
+    const secure = process.env.NODE_ENV === "production" || Boolean(process.env.VERCEL);
+    appendSetCookies(res, [
+      `shule_csrf=${encodeURIComponent(token)}; Max-Age=7200; Path=/; SameSite=Lax${secure ? "; Secure" : ""}`
+    ]);
+  }
+  return token;
+}
+
+function validateCsrf(req) {
+  if (!["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) return;
+  const cookies = parseCookies(req);
+  const cookieToken = String(cookies.shule_csrf || "");
+  const headerToken = String(req.headers["x-csrf-token"] || "");
+  if (!cookieToken || !headerToken || !safeEqual(cookieToken, headerToken)) {
+    const error = new Error("CSRF token is missing or invalid");
+    error.statusCode = 403;
+    throw error;
+  }
 }
 
 async function authRequest(pathname, options = {}, admin = false) {
@@ -110,9 +137,7 @@ async function getSession(req, res) {
 }
 
 function sessionUser(user) {
-  const email = String(user.email || "").toLowerCase();
-  const configuredSuperAdmin = SUPER_ADMIN_EMAILS.includes(email);
-  const role = configuredSuperAdmin ? "Super Admin" : user.app_metadata?.role || user.user_metadata?.role || "Viewer";
+  const role = user.app_metadata?.role || "Viewer";
   return {
     id: user.id,
     email: user.email,
@@ -176,8 +201,7 @@ async function bootstrapAvailable() {
   try {
     const payload = await authRequest("admin/users?page=1&per_page=1000", {}, true);
     return !(payload.users || []).some((user) => {
-      const email = String(user.email || "").trim().toLowerCase();
-      return user.app_metadata?.role === "Super Admin" || SUPER_ADMIN_EMAILS.includes(email);
+      return user.app_metadata?.role === "Super Admin";
     });
   } catch (error) {
     console.error("Unable to check first Super Admin setup status", error.message);
@@ -244,10 +268,12 @@ module.exports = {
   bootstrapSuperAdmin,
   clearSessionCookies,
   createUser,
+  ensureCsrfToken,
   getSession,
   listUsers,
   login,
   requireRoles,
   requireSession,
+  validateCsrf,
   updateUserRole
 };

@@ -7,11 +7,13 @@ const {
   bootstrapSuperAdmin,
   clearSessionCookies,
   createUser,
+  ensureCsrfToken,
   getSession,
   listUsers,
   login,
   requireRoles,
   requireSession,
+  validateCsrf,
   updateUserRole
 } = require("./api/_lib/auth");
 const {
@@ -64,6 +66,7 @@ const MIME_TYPES = {
 const TEACHER_ROLES = new Set(["Class Teacher", "Subject Teacher"]);
 const SCHOOL_ADMIN_ROLES = ["Super Admin", "School Admin"];
 const RATE_WINDOWS = new Map();
+const CSRF_EXEMPT_PATHS = new Set(["/api/auth/login", "/api/auth/bootstrap"]);
 
 function applySecurityHeaders(res) {
   res.setHeader("X-Content-Type-Options", "nosniff");
@@ -97,7 +100,7 @@ function enforceRateLimit(req, key, limit, windowMs) {
   }
 }
 
-function validateMutationOrigin(req) {
+function validateMutationOrigin(req, pathname = "") {
   if (!["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) return;
   const fetchSite = String(req.headers["sec-fetch-site"] || "");
   if (fetchSite && !["same-origin", "same-site", "none"].includes(fetchSite)) {
@@ -106,13 +109,13 @@ function validateMutationOrigin(req) {
     throw error;
   }
   const origin = req.headers.origin;
-  if (!origin) return;
   const expected = `${req.headers["x-forwarded-proto"] || "http"}://${req.headers.host}`;
-  if (origin !== expected) {
+  if (origin && origin !== expected) {
     const error = new Error("Request origin is not permitted");
     error.statusCode = 403;
     throw error;
   }
+  if (!CSRF_EXEMPT_PATHS.has(pathname)) validateCsrf(req);
 }
 
 function enforceSubscription(school, session) {
@@ -232,7 +235,7 @@ function parseBody(req) {
 }
 
 async function handleApi(req, res, pathname, searchParams) {
-  validateMutationOrigin(req);
+  validateMutationOrigin(req, pathname);
   if (req.method === "POST" && pathname === "/api/auth/login") {
     enforceRateLimit(req, "login", 10, 15 * 60 * 1000);
     const user = await login(req, res, await parseBody(req));
@@ -250,10 +253,12 @@ async function handleApi(req, res, pathname, searchParams) {
 
   const session = await getSession(req, res);
   if (req.method === "GET" && pathname === "/api/auth/session") {
+    const csrfToken = ensureCsrfToken(req, res);
     return sendJson(res, 200, {
       authenticated: Boolean(session),
       user: session,
-      firstAdminSetupAvailable: session ? false : await bootstrapAvailable()
+      firstAdminSetupAvailable: session ? false : await bootstrapAvailable(),
+      csrfToken
     });
   }
 

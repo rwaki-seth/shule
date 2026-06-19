@@ -1,4 +1,4 @@
-const { getSession, requireRoles } = require("../_lib/auth");
+const { getSession, requireRoles, validateCsrf } = require("../_lib/auth");
 const { archiveReports, listReportArchive, loadDb, saveDb, sendError, sendJson } = require("../_lib/shule");
 
 module.exports = async function handler(req, res) {
@@ -10,6 +10,7 @@ module.exports = async function handler(req, res) {
       return sendJson(res, 200, listReportArchive(db, req.query || {}));
     }
     if (req.method === "POST") {
+      validateCsrf(req);
       requireRoles(session, ["Super Admin", "School Admin", "Head Teacher", "DOS", "Class Teacher"]);
       const result = archiveReports(db, req.body || {}, session);
       await saveDb(db);
