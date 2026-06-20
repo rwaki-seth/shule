@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,500;0,600;0,700;1,500&family=Inter:wght@400;500;600;700;800&display=swap');
+
 :root {
   --primary: #540f35;
   --secondary: #7a164b;
@@ -14,6 +16,29 @@
   --red: #dc2626;
   --shadow: 0 14px 35px rgba(84, 15, 53, 0.12);
   --maroon: #540f35;
+
+  --font-display: "Lora", "Georgia", serif;
+  --font-ui: "Inter", "Segoe UI", Arial, sans-serif;
+
+  --status-success-bg: #eaf6ee;
+  --status-success-text: #166a37;
+  --status-success-border: #16a34a;
+  --status-pending-bg: #fff6e0;
+  --status-pending-text: #8a5a00;
+  --status-pending-border: #d99a00;
+  --status-danger-bg: #fdecec;
+  --status-danger-text: #9c1c1c;
+  --status-danger-border: #dc2626;
+  --status-info-bg: #eaf1fb;
+  --status-info-text: #1c4f8a;
+  --status-info-border: #2f6fb8;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --shadow-resting: 0 1px 2px rgba(31, 41, 55, 0.06);
+  --shadow-raised: 0 8px 20px rgba(31, 41, 55, 0.08);
+  --shadow-hero: 0 20px 45px rgba(84, 15, 53, 0.22);
 }
 
 [hidden] {
@@ -303,8 +328,9 @@ body {
   background: var(--gold);
   color: var(--navy);
   border-radius: 14px;
-  font-weight: 900;
+  font-weight: 700;
   letter-spacing: 0;
+  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.35);
 }
 
 .brand-mark img,
@@ -318,6 +344,13 @@ body {
 .brand strong,
 .brand span {
   display: block;
+}
+
+.brand strong {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15.5px;
+  letter-spacing: -0.005em;
 }
 
 .brand span {
@@ -369,11 +402,20 @@ textarea:focus-visible {
   text-align: left;
   background: transparent;
   color: #fff2c4;
+  border-left: 3px solid transparent;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .nav-button.active,
 .nav-button:hover {
   background: rgba(255, 255, 255, 0.14);
+}
+
+.nav-button.active {
+  border-left-color: var(--gold);
+  color: #fff;
+  font-weight: 600;
 }
 
 .app-shell {
@@ -401,18 +443,22 @@ p {
 }
 
 h1 {
+  font-family: var(--font-display);
   font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 h2 {
   font-size: 19px;
+  font-weight: 700;
 }
 
 .eyebrow {
   color: var(--primary);
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: 0.06em;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   margin-bottom: 5px;
 }
@@ -464,12 +510,15 @@ h2 {
   padding: 28px;
   color: var(--white);
   background: linear-gradient(135deg, var(--primary), var(--secondary));
-  border-radius: 8px;
-  box-shadow: var(--shadow);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-hero);
 }
 
 .hero-band h2 {
+  font-family: var(--font-display);
   font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   margin-bottom: 8px;
 }
 
@@ -480,6 +529,8 @@ h2 {
 .hero-band p {
   max-width: 780px;
   color: #fff3cf;
+  font-size: 14.5px;
+  line-height: 1.55;
 }
 
 .seal {
@@ -491,8 +542,10 @@ h2 {
   text-align: center;
   background: var(--gold);
   color: var(--navy);
-  font-weight: 900;
-  box-shadow: inset 0 0 0 8px rgba(255, 255, 255, 0.28);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  box-shadow: inset 0 0 0 8px rgba(255, 255, 255, 0.28), 0 6px 16px rgba(84, 15, 53, 0.25);
 }
 
 .metric-grid {
@@ -801,13 +854,19 @@ input[type="color"] {
 .chart-card {
   background: var(--white);
   border: 1px solid var(--line);
-  border-radius: 8px;
-  box-shadow: var(--shadow);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-resting);
 }
 
 .metric {
   padding: 18px;
   border-top: 4px solid var(--gold);
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.metric:hover {
+  box-shadow: var(--shadow-raised);
+  transform: translateY(-1px);
 }
 
 .metric span,
@@ -821,18 +880,62 @@ table span {
   display: block;
   margin-top: 9px;
   font-size: 31px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
 }
 
 .status-complete {
-  border-top-color: var(--success);
+  border-top-color: var(--status-success-border);
 }
 
 .status-pending {
-  border-top-color: var(--orange);
+  border-top-color: var(--status-pending-border);
 }
 
 .status-late {
-  border-top-color: var(--red);
+  border-top-color: var(--status-danger-border);
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.status-badge.status-complete,
+.status-badge.status-promoted,
+.status-badge.status-success {
+  background: var(--status-success-bg);
+  color: var(--status-success-text);
+  border-top: none;
+}
+
+.status-badge.status-pending,
+.status-badge.status-manual-review {
+  background: var(--status-pending-bg);
+  color: var(--status-pending-text);
+  border-top: none;
+}
+
+.status-badge.status-late,
+.status-badge.status-overdue,
+.status-badge.status-failed {
+  background: var(--status-danger-bg);
+  color: var(--status-danger-text);
+  border-top: none;
+}
+
+.status-badge.status-info,
+.status-badge.status-submitted {
+  background: var(--status-info-bg);
+  color: var(--status-info-text);
+  border-top: none;
 }
 
 .panel {
